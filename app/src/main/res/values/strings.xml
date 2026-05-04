@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NexusSMS</string>
+    
+    <!-- Main Screen -->
+    <string name="messages">Messages</string>
+    <string name="settings">Settings</string>
+    
+    <!-- Conversation List -->
+    <string name="new_message">New Message</string>
+    <string name="no_conversations">No conversations yet</string>
+    <string name="loading_conversations">Loading conversations...</string>
+    <string name="pinned">Pinned</string>
+    <string name="recent">Recent</string>
+    
+    <!-- Chat Screen -->
+    <string name="message_hint">Message...</string>
+    <string name="send">Send</string>
+    <string name="sms">SMS</string>
+    <string name="rcs">RCS</string>
+    <string name="image">Image</string>
+    <string name="attachment">Attachment</string>
+    <string name="emoji">Emoji</string>
+    
+    <!-- Settings -->
+    <string name="appearance">Appearance</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="light_mode">Light Mode</string>
+    <string name="themes">Themes</string>
+    <string name="messages_and_notifications">Messages &amp; Notifications</string>
+    <string name="signatures">Signatures</string>
+    <string name="scheduled_messages">Scheduled Messages</string>
+    <string name="message_encryption">Message Encryption</string>
+    <string name="shortcuts">Shortcuts</string>
+    <string name="quick_shortcuts">Quick Shortcuts</string>
+    <string name="integrations">Integrations</string>
+    <string name="social_media_accounts">Social Media Accounts</string>
+    <string name="rcs_support">RCS Support</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="terms_of_service">Terms of Service</string>
+    
+    <!-- Dialogs and confirmations -->
+    <string name="confirm_delete">Are you sure you want to delete this conversation?</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="pin">Pin</string>
+    <string name="unpin">Unpin</string>
+    <string name="mute">Mute</string>
+    <string name="unmute">Unmute</string>
+    
+    <!-- Error messages -->
+    <string name="error_sending_message">Error sending message</string>
+    <string name="error_loading_conversations">Error loading conversations</string>
+    <string name="error_invalid_phone_number">Invalid phone number</string>
+</resources>

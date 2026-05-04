@@ -1,0 +1,239 @@
+package com.nexussms.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.nexussms.ui.viewmodels.SettingsViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    viewModel: SettingsViewModel = hiltViewModel()
+) {
+    val themes by viewModel.themes.collectAsState()
+    val signatures by viewModel.signatures.collectAsState()
+    val isDarkMode by viewModel.isDarkMode.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = Color.White
+                )
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            item { SettingsSection(title = "Appearance") }
+
+            item {
+                DarkModeToggle(
+                    isDarkMode = isDarkMode,
+                    onToggle = { viewModel.toggleDarkMode(it) }
+                )
+            }
+
+            item {
+                Text(
+                    text = "Themes",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            items(themes) { theme ->
+                ThemeItem(
+                    themeName = theme.name,
+                    themeColor = theme.primaryColor,
+                    isCustom = theme.isCustom,
+                    onClick = { viewModel.setCurrentTheme(theme) }
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsSection(title = "Messages & Notifications")
+            }
+
+            item {
+                SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved")
+            }
+            item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages") }
+            item { SettingsItem(title = "Message Encryption", subtitle = "AES-256 Encryption enabled") }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsSection(title = "Shortcuts")
+            }
+            item { SettingsItem(title = "Quick Shortcuts", subtitle = "Manage shortcodes") }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsSection(title = "Integrations")
+            }
+            item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms") }
+            item { SettingsItem(title = "RCS Support", subtitle = "Rich Communication Services") }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsSection(title = "About")
+            }
+            item { SettingsItem(title = "Version", subtitle = "1.0.0") }
+            item { SettingsItem(title = "Privacy Policy", subtitle = "") }
+            item { SettingsItem(title = "Terms of Service", subtitle = "") }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+@Composable
+fun SettingsSection(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(16.dp),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+fun SettingsItem(
+    title: String,
+    subtitle: String = "",
+    onClick: () -> Unit = {}
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+        if (subtitle.isNotEmpty()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    HorizontalDivider()
+}
+
+@Composable
+fun DarkModeToggle(isDarkMode: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
+                contentDescription = "Dark Mode",
+                modifier = Modifier.width(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = if (isDarkMode) "Dark Mode" else "Light Mode",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Switch(checked = isDarkMode, onCheckedChange = { onToggle(it) })
+    }
+    HorizontalDivider()
+}
+
+@Composable
+fun ThemeItem(
+    themeName: String,
+    themeColor: String,
+    isCustom: Boolean = false,
+    onClick: () -> Unit = {}
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(
+                    color = try {
+                        Color(android.graphics.Color.parseColor(themeColor))
+                    } catch (e: Exception) {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(themeName, style = MaterialTheme.typography.bodyMedium)
+            if (isCustom) {
+                Text(
+                    "Custom",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+    HorizontalDivider()
+}
