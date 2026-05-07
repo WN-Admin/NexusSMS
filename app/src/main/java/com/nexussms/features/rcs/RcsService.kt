@@ -7,7 +7,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
-import java.util.Date
 
 /**
  * RCS (Rich Communication Services) implementation
@@ -33,48 +32,49 @@ class RcsService @Inject constructor(
         phoneNumber: String,
         content: String,
         attachments: List<String> = emptyList(),
-        conversationId: Long
-    ): Long {
+        conversationId: String
+    ): String {
         val message = Message(
             conversationId = conversationId,
-            senderId = "self",
-            recipientId = phoneNumber,
+            senderPhoneNumber = "self",
+            recipientPhoneNumber = phoneNumber,
             content = content,
-            timestamp = Date(),
-            isIncoming = false,
-            isSent = true,
-            messageType = "RCS",
-            attachmentUrls = attachments.joinToString(","),
-            encryptionType = "AES256"
+            timestamp = System.currentTimeMillis(),
+            status = "SENT",
+            type = "RCS",
+            mediaUrls = attachments.joinToString(","),
+            isEncrypted = true,
+            encryptionAlgorithm = "AES256"
         )
-        return messageRepository.insertMessage(message)
+        messageRepository.insertMessage(message)
+        return message.id
     }
 
     suspend fun sendTypingIndicator(phoneNumber: String, isTyping: Boolean) {
         // Send typing indicator notification
     }
 
-    suspend fun sendReadReceipt(messageId: Long) {
+    suspend fun sendReadReceipt(messageId: String) {
         // Send read receipt for RCS message
     }
 
-    suspend fun addReaction(messageId: Long, reaction: String) {
-        val message = messageRepository.getMessage(messageId)
+    suspend fun addReaction(messageId: String, reaction: String) {
+        val message = messageRepository.getMessageById(messageId)
         // Add reaction to message
     }
 
-    suspend fun shareSticker(phoneNumber: String, stickerId: String, conversationId: Long) {
+    suspend fun shareSticker(phoneNumber: String, stickerId: String, conversationId: String) {
         val message = Message(
             conversationId = conversationId,
-            senderId = "self",
-            recipientId = phoneNumber,
+            senderPhoneNumber = "self",
+            recipientPhoneNumber = phoneNumber,
             content = "Sticker: $stickerId",
-            timestamp = Date(),
-            isIncoming = false,
-            isSent = true,
-            messageType = "RCS",
-            attachmentUrls = stickerId,
-            encryptionType = "AES256"
+            timestamp = System.currentTimeMillis(),
+            status = "SENT",
+            type = "RCS",
+            mediaUrls = stickerId,
+            isEncrypted = true,
+            encryptionAlgorithm = "AES256"
         )
         messageRepository.insertMessage(message)
     }
@@ -92,7 +92,7 @@ class RcsService @Inject constructor(
         )
     }
 
-    fun getRcsMessages(conversationId: Long): Flow<List<Message>> {
-        return messageRepository.getConversationMessages(conversationId)
+    fun getRcsMessages(conversationId: String): Flow<List<Message>> {
+        return messageRepository.getMessagesByConversation(conversationId, limit = 50, offset = 0)
     }
 }

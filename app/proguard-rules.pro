@@ -1,50 +1,52 @@
-# Jetpack Compose
--keep class androidx.compose.** { *; }
--keep interface androidx.compose.** { *; }
+# NexusSMS App
+-keep class com.nexussms.** { *; }
+-keep interface com.nexussms.** { *; }
+-keep enum com.nexussms.** { *; }
 
-# Room Database
--keep class androidx.room.** { *; }
--keep interface androidx.room.** { *; }
--keepattributes RuntimeVisibleAnnotations
--keep @androidx.room.Entity class * { *; }
--keep @androidx.room.Dao class * { *; }
+# Room
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.* class * { *; }
 
-# Hilt
+# Hilt / Dagger
 -keep class dagger.hilt.** { *; }
--keep interface dagger.hilt.** { *; }
--keep class hilt_aggregated_deps.** { *; }
--keep class **_Factory { *; }
--keep class **_Module { *; }
--keep class **_Impl { *; }
+-keep class javax.inject.** { *; }
+-keep class hilt_aggregated_deps { *; }
+-keep class **_HiltModules { *; }
+-keep class **_HiltModules_BindsModule { *; }
+-keep class **_HiltModules_Module { *; }
 
-# Data Models
--keep class com.nexussms.data.models.** { *; }
--keep class com.nexussms.data.repository.** { *; }
-
-# Security
--keep class androidx.security.crypto.** { *; }
--keep class javax.crypto.** { *; }
-
-# Retrofit & OkHttp
--keep class retrofit2.** { *; }
--keep interface retrofit2.** { *; }
--keep class okhttp3.** { *; }
--keep interface okhttp3.** { *; }
+# Gson
+-keepattributes Signature
+-keepattributes *Annotation*
 -keep class com.google.gson.** { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
 
-# Protocol Buffers
--keep class com.google.protobuf.** { *; }
+# Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+
+# Compose
+-keep class androidx.compose.** { *; }
+
+# Navigation
+-keep class androidx.navigation.** { *; }
+
+# Biometric
+-keep class androidx.biometric.** { *; }
+
+# Google Drive / Play Services
+-keep class com.google.api.services.drive.** { *; }
+-keep class com.google.api.client.** { *; }
+-keep class com.google.android.gms.** { *; }
 
 # WorkManager
 -keep class androidx.work.** { *; }
--keep class **_Worker { *; }
 
-# Keep Kotlin metadata
--keepclassmembers class ** {
-    *** Companion;
-}
--keepattributes InnerClasses
--keepattributes EnclosingMethod
--keepattributes Signature
--keepattributes SourceFile
--keepattributes LineNumberTable
+# OkHttp
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+
+# Timber
+-keep class com.jakewharton.timber.** { *; }

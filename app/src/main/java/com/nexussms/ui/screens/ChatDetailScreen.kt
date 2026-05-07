@@ -52,7 +52,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatDetailScreen(
-    conversationId: Long,
+    conversationId: String,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val messages by viewModel.messages.collectAsState()
@@ -72,9 +72,9 @@ fun ChatDetailScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(conversation?.participantName ?: "Chat")
+                        Text(conversation?.displayName ?: "Chat")
                         Text(
-                            text = conversation?.participantPhone ?: "",
+                            text = conversation?.participantPhoneNumbers ?: "",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray
                         )
@@ -156,7 +156,7 @@ fun ChatDetailScreen(
                         keyboardActions = KeyboardActions(
                             onSend = {
                                 conversation?.let { conv ->
-                                    viewModel.sendMessage(conversationId, conv.participantPhone)
+                                    viewModel.sendMessage(conversationId, conv.participantPhoneNumbers)
                                 }
                             }
                         ),
@@ -166,7 +166,7 @@ fun ChatDetailScreen(
                     IconButton(
                         onClick = {
                             conversation?.let { conv ->
-                                viewModel.sendMessage(conversationId, conv.participantPhone)
+                                viewModel.sendMessage(conversationId, conv.participantPhoneNumbers)
                             }
                         },
                         enabled = !isSending && messageText.isNotEmpty()
@@ -185,14 +185,14 @@ fun MessageBubble(message: Message) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = if (message.isIncoming) Arrangement.Start else Arrangement.End
+        horizontalArrangement = if (message.senderPhoneNumber != "self") Arrangement.Start else Arrangement.End
     ) {
         Box(
             modifier = Modifier
                 .widthIn(max = 280.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(
-                    color = if (message.isIncoming) {
+                    color = if (message.senderPhoneNumber != "self") {
                         MaterialTheme.colorScheme.surfaceVariant
                     } else {
                         MaterialTheme.colorScheme.primary
@@ -203,7 +203,7 @@ fun MessageBubble(message: Message) {
             Column {
                 Text(
                     text = message.content,
-                    color = if (message.isIncoming) {
+                    color = if (message.senderPhoneNumber != "self") {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         Color.White
@@ -213,7 +213,7 @@ fun MessageBubble(message: Message) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(message.timestamp),
-                    color = if (message.isIncoming) {
+                    color = if (message.senderPhoneNumber != "self") {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     } else {
                         Color.White.copy(alpha = 0.7f)

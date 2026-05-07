@@ -4,14 +4,19 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import com.nexussms.data.models.Message
 import com.nexussms.data.models.Conversation
 import com.nexussms.data.models.Shortcut
 import com.nexussms.data.models.ScheduledMessage
-import com.nexussms.data.models.UserSignature
+import com.nexussms.data.models.Signature
 import com.nexussms.data.models.Theme
 import com.nexussms.data.models.SocialAccount
-import com.nexussms.data.models.ContactShortcut
+import com.nexussms.data.models.Reaction
+import com.nexussms.data.models.BackupMetadata
+import com.nexussms.data.models.AppSecuritySettings
+import com.nexussms.data.converters.DateConverter
+import com.nexussms.data.converters.JsonConverter
 
 @Database(
     entities = [
@@ -19,14 +24,17 @@ import com.nexussms.data.models.ContactShortcut
         Conversation::class,
         Shortcut::class,
         ScheduledMessage::class,
-        UserSignature::class,
+        Signature::class,
         Theme::class,
         SocialAccount::class,
-        ContactShortcut::class
+        Reaction::class,
+        BackupMetadata::class,
+        AppSecuritySettings::class
     ],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
+@TypeConverters(DateConverter::class, JsonConverter::class)
 abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun conversationDao(): ConversationDao
@@ -35,7 +43,9 @@ abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun signatureDao(): SignatureDao
     abstract fun themeDao(): ThemeDao
     abstract fun socialAccountDao(): SocialAccountDao
-    abstract fun contactShortcutDao(): ContactShortcutDao
+    abstract fun reactionDao(): ReactionDao
+    abstract fun backupMetadataDao(): BackupMetadataDao
+    abstract fun appSecuritySettingsDao(): AppSecuritySettingsDao
 
     companion object {
         @Volatile
@@ -48,6 +58,7 @@ abstract class NexusSMSDatabase : RoomDatabase() {
                     NexusSMSDatabase::class.java,
                     "nexussms_database"
                 )
+                    .addMigrations()
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { Instance = it }

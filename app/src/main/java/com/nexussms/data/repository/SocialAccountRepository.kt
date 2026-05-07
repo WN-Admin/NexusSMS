@@ -8,9 +8,8 @@ import javax.inject.Inject
 class SocialAccountRepository @Inject constructor(
     private val socialAccountDao: SocialAccountDao
 ) {
-    suspend fun insertAccount(account: SocialAccount): Long {
-        return socialAccountDao.insertAccount(account)
-    }
+    suspend fun insertAccount(account: SocialAccount): Long =
+        socialAccountDao.insertAccount(account)
 
     suspend fun updateAccount(account: SocialAccount) {
         socialAccountDao.updateAccount(account)
@@ -20,15 +19,13 @@ class SocialAccountRepository @Inject constructor(
         socialAccountDao.deleteAccount(account)
     }
 
-    fun getActiveAccounts(): Flow<List<SocialAccount>> {
-        return socialAccountDao.getActiveAccounts()
-    }
+    suspend fun getAccountByPlatform(platform: String): SocialAccount? =
+        socialAccountDao.getAccountByPlatform(platform)
 
-    fun getAccountsByPlatform(platform: String): Flow<List<SocialAccount>> {
-        return socialAccountDao.getAccountsByPlatform(platform)
-    }
+    fun getAccountsByPlatform(platform: String): Flow<List<SocialAccount>> =
+        socialAccountDao.getAccountsByPlatform(platform)
 
-    fun getAllAccounts(): Flow<List<SocialAccount>> {
-        return socialAccountDao.getAllAccounts()
-    }
+    fun getConnectedAccounts(): Flow<List<SocialAccount>> = socialAccountDao.getConnectedAccounts()
+
+    fun getAllAccounts(): Flow<List<SocialAccount>> = socialAccountDao.getAllAccounts()
 }

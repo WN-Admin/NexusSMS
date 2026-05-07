@@ -2,13 +2,11 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
-import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
@@ -44,8 +42,6 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
 
   private final EntityDeletionOrUpdateAdapter<ScheduledMessage> __updateAdapterOfScheduledMessage;
 
-  private final SharedSQLiteStatement __preparedStmtOfDeleteScheduledMessageById;
-
   public ScheduledMessageDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfScheduledMessage = new EntityInsertionAdapter<ScheduledMessage>(__db) {
@@ -57,7 +53,7 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final ScheduledMessage entity) {
+          final ScheduledMessage entity) {
         statement.bindLong(1, entity.getId());
         statement.bindLong(2, entity.getConversationId());
         if (entity.getRecipientPhone() == null) {
@@ -105,7 +101,7 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final ScheduledMessage entity) {
+          final ScheduledMessage entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -118,7 +114,7 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final ScheduledMessage entity) {
+          final ScheduledMessage entity) {
         statement.bindLong(1, entity.getId());
         statement.bindLong(2, entity.getConversationId());
         if (entity.getRecipientPhone() == null) {
@@ -158,97 +154,24 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
         statement.bindLong(10, entity.getId());
       }
     };
-    this.__preparedStmtOfDeleteScheduledMessageById = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "DELETE FROM scheduled_messages WHERE id = ?";
-        return _query;
-      }
-    };
   }
 
   @Override
   public Object insertScheduledMessage(final ScheduledMessage message,
       final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfScheduledMessage.insertAndReturnId(message);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteScheduledMessage(final ScheduledMessage message,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfScheduledMessage.handle(message);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateScheduledMessage(final ScheduledMessage message,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfScheduledMessage.handle(message);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Object deleteScheduledMessageById(final long id,
-      final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteScheduledMessageById.acquire();
-        int _argIndex = 1;
-        _stmt.bindLong(_argIndex, id);
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfDeleteScheduledMessageById.release(_stmt);
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -257,7 +180,6 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"scheduled_messages"}, new Callable<List<ScheduledMessage>>() {
       @Override
-      @NonNull
       public List<ScheduledMessage> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -343,7 +265,6 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"scheduled_messages"}, new Callable<List<ScheduledMessage>>() {
       @Override
-      @NonNull
       public List<ScheduledMessage> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -431,7 +352,6 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
     _statement.bindLong(_argIndex, id);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"scheduled_messages"}, new Callable<ScheduledMessage>() {
       @Override
-      @Nullable
       public ScheduledMessage call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -509,6 +429,12 @@ public final class ScheduledMessageDao_Impl implements ScheduledMessageDao {
         _statement.release();
       }
     });
+  }
+
+  @Override
+  public Object deleteScheduledMessageById(final long id,
+      final Continuation<? super Unit> $completion) {
+    __db.assertNotSuspendingTransaction();
   }
 
   @NonNull

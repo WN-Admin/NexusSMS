@@ -2,13 +2,11 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
-import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
@@ -40,8 +38,6 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
 
   private final EntityDeletionOrUpdateAdapter<ContactShortcut> __updateAdapterOfContactShortcut;
 
-  private final SharedSQLiteStatement __preparedStmtOfDeleteAllShortcutsForContact;
-
   public ContactShortcutDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfContactShortcut = new EntityInsertionAdapter<ContactShortcut>(__db) {
@@ -53,7 +49,7 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final ContactShortcut entity) {
+          final ContactShortcut entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getContactPhone() == null) {
           statement.bindNull(2);
@@ -74,7 +70,7 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final ContactShortcut entity) {
+          final ContactShortcut entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -87,7 +83,7 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final ContactShortcut entity) {
+          final ContactShortcut entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getContactPhone() == null) {
           statement.bindNull(2);
@@ -100,101 +96,24 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
         statement.bindLong(5, entity.getId());
       }
     };
-    this.__preparedStmtOfDeleteAllShortcutsForContact = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "DELETE FROM contact_shortcuts WHERE contactPhone = ?";
-        return _query;
-      }
-    };
   }
 
   @Override
   public Object insertContactShortcut(final ContactShortcut contactShortcut,
       final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfContactShortcut.insertAndReturnId(contactShortcut);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteContactShortcut(final ContactShortcut contactShortcut,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfContactShortcut.handle(contactShortcut);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateContactShortcut(final ContactShortcut contactShortcut,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfContactShortcut.handle(contactShortcut);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Object deleteAllShortcutsForContact(final String phone,
-      final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteAllShortcutsForContact.acquire();
-        int _argIndex = 1;
-        if (phone == null) {
-          _stmt.bindNull(_argIndex);
-        } else {
-          _stmt.bindString(_argIndex, phone);
-        }
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfDeleteAllShortcutsForContact.release(_stmt);
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -209,7 +128,6 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
     }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"contact_shortcuts"}, new Callable<List<ContactShortcut>>() {
       @Override
-      @NonNull
       public List<ContactShortcut> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -248,6 +166,12 @@ public final class ContactShortcutDao_Impl implements ContactShortcutDao {
         _statement.release();
       }
     });
+  }
+
+  @Override
+  public Object deleteAllShortcutsForContact(final String phone,
+      final Continuation<? super Unit> $completion) {
+    __db.assertNotSuspendingTransaction();
   }
 
   @NonNull

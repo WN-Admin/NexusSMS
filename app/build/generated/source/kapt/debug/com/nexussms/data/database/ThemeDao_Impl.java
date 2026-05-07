@@ -2,7 +2,6 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
@@ -49,8 +48,7 @@ public final class ThemeDao_Impl implements ThemeDao {
       }
 
       @Override
-      protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Theme entity) {
+      protected void bind(@NonNull final SupportSQLiteStatement statement, final Theme entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getName() == null) {
           statement.bindNull(2);
@@ -101,8 +99,7 @@ public final class ThemeDao_Impl implements ThemeDao {
       }
 
       @Override
-      protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Theme entity) {
+      protected void bind(@NonNull final SupportSQLiteStatement statement, final Theme entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -114,8 +111,7 @@ public final class ThemeDao_Impl implements ThemeDao {
       }
 
       @Override
-      protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Theme entity) {
+      protected void bind(@NonNull final SupportSQLiteStatement statement, final Theme entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getName() == null) {
           statement.bindNull(2);
@@ -163,56 +159,17 @@ public final class ThemeDao_Impl implements ThemeDao {
 
   @Override
   public Object insertTheme(final Theme theme, final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfTheme.insertAndReturnId(theme);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteTheme(final Theme theme, final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfTheme.handle(theme);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateTheme(final Theme theme, final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfTheme.handle(theme);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -221,7 +178,6 @@ public final class ThemeDao_Impl implements ThemeDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"themes"}, new Callable<List<Theme>>() {
       @Override
-      @NonNull
       public List<Theme> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -314,7 +270,6 @@ public final class ThemeDao_Impl implements ThemeDao {
     _statement.bindLong(_argIndex, id);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"themes"}, new Callable<Theme>() {
       @Override
-      @Nullable
       public Theme call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -405,7 +360,6 @@ public final class ThemeDao_Impl implements ThemeDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"themes"}, new Callable<List<Theme>>() {
       @Override
-      @NonNull
       public List<Theme> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -496,7 +450,6 @@ public final class ThemeDao_Impl implements ThemeDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"themes"}, new Callable<List<Theme>>() {
       @Override
-      @NonNull
       public List<Theme> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {

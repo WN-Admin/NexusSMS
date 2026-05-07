@@ -2,7 +2,6 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
@@ -50,7 +49,7 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final SocialAccount entity) {
+          final SocialAccount entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getPlatform() == null) {
           statement.bindNull(2);
@@ -95,7 +94,7 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final SocialAccount entity) {
+          final SocialAccount entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -108,7 +107,7 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final SocialAccount entity) {
+          final SocialAccount entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getPlatform() == null) {
           statement.bindNull(2);
@@ -150,58 +149,19 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
   @Override
   public Object insertAccount(final SocialAccount account,
       final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfSocialAccount.insertAndReturnId(account);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteAccount(final SocialAccount account,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfSocialAccount.handle(account);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateAccount(final SocialAccount account,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfSocialAccount.handle(account);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -210,7 +170,6 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"social_accounts"}, new Callable<List<SocialAccount>>() {
       @Override
-      @NonNull
       public List<SocialAccount> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -295,7 +254,6 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
     }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"social_accounts"}, new Callable<List<SocialAccount>>() {
       @Override
-      @NonNull
       public List<SocialAccount> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -374,7 +332,6 @@ public final class SocialAccountDao_Impl implements SocialAccountDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"social_accounts"}, new Callable<List<SocialAccount>>() {
       @Override
-      @NonNull
       public List<SocialAccount> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {

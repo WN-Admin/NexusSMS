@@ -8,8 +8,8 @@ import javax.inject.Inject
 class ScheduledMessageRepository @Inject constructor(
     private val scheduledMessageDao: ScheduledMessageDao
 ) {
-    suspend fun insertScheduledMessage(message: ScheduledMessage): Long {
-        return scheduledMessageDao.insertScheduledMessage(message)
+    suspend fun insertScheduledMessage(message: ScheduledMessage) {
+        scheduledMessageDao.insertScheduledMessage(message)
     }
 
     suspend fun updateScheduledMessage(message: ScheduledMessage) {
@@ -20,19 +20,37 @@ class ScheduledMessageRepository @Inject constructor(
         scheduledMessageDao.deleteScheduledMessage(message)
     }
 
-    suspend fun deleteScheduledMessageById(id: Long) {
-        scheduledMessageDao.deleteScheduledMessageById(id)
+    suspend fun getDueMessages(currentTime: Long): List<ScheduledMessage> =
+        scheduledMessageDao.getDueMessages(currentTime)
+
+    fun getPendingScheduledMessages(): Flow<List<ScheduledMessage>> =
+        scheduledMessageDao.getScheduledMessagesByStatus("PENDING")
+
+    fun getScheduledMessagesByStatus(status: String): Flow<List<ScheduledMessage>> =
+        scheduledMessageDao.getScheduledMessagesByStatus(status)
+
+    suspend fun getScheduledMessageById(scheduledMessageId: String): ScheduledMessage? =
+        scheduledMessageDao.getScheduledMessageById(scheduledMessageId)
+
+    suspend fun cancelScheduledMessage(scheduledMessageId: String, reason: String? = "Cancelled by user") {
+        scheduledMessageDao.updateStatus(
+            scheduledMessageId = scheduledMessageId,
+            status = "CANCELLED",
+            reason = reason
+        )
     }
 
-    fun getAllScheduledMessages(): Flow<List<ScheduledMessage>> {
-        return scheduledMessageDao.getAllScheduledMessages()
+    suspend fun rescheduleMessage(scheduledMessageId: String, newTimeMillis: Long) {
+        val current = scheduledMessageDao.getScheduledMessageById(scheduledMessageId) ?: return
+        scheduledMessageDao.updateScheduledMessage(
+            current.copy(
+                scheduledTime = newTimeMillis,
+                status = "PENDING",
+                failureReason = null
+            )
+        )
     }
 
-    fun getPendingScheduledMessages(): Flow<List<ScheduledMessage>> {
-        return scheduledMessageDao.getPendingScheduledMessages()
-    }
-
-    fun getScheduledMessage(id: Long): Flow<ScheduledMessage?> {
-        return scheduledMessageDao.getScheduledMessage(id)
-    }
+    fun getScheduledMessages(conversationId: String): Flow<List<ScheduledMessage>> =
+        scheduledMessageDao.getScheduledMessages(conversationId)
 }

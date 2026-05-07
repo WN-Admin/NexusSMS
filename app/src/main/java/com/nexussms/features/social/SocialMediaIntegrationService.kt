@@ -7,7 +7,6 @@ import com.nexussms.data.repository.MessageRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
-import java.util.Date
 
 /**
  * Supports integration with multiple social media platforms:
@@ -41,12 +40,12 @@ class SocialMediaIntegrationService @Inject constructor(
     ): Long {
         val account = SocialAccount(
             platform = platform.name,
-            accountId = accountId,
+            userId = accountId,
             username = username,
             accessToken = accessToken,
             refreshToken = refreshToken,
             displayName = displayName,
-            isActive = true
+            isConnected = true
         )
         return socialAccountRepository.insertAccount(account)
     }
@@ -59,17 +58,16 @@ class SocialMediaIntegrationService @Inject constructor(
         conversationId: Long
     ): Long {
         val message = Message(
-            conversationId = conversationId,
-            senderId = "self",
-            recipientId = recipientId,
+            conversationId = conversationId.toString(),
+            senderPhoneNumber = "self",
+            recipientPhoneNumber = recipientId,
             content = content,
-            timestamp = Date(),
-            isIncoming = false,
-            isSent = true,
-            messageType = "SOCIAL",
-            socialMediaPlatform = platform.name,
-            attachmentUrls = attachments.joinToString(","),
-            encryptionType = "AES256"
+            timestamp = System.currentTimeMillis(),
+            status = "SENT",
+            type = "SOCIAL",
+            mediaUrls = attachments.joinToString(","),
+            encryptionAlgorithm = "AES256",
+            metadata = "{\"platform\":\"${platform.name}\"}"
         )
         return messageRepository.insertMessage(message)
     }
@@ -79,26 +77,26 @@ class SocialMediaIntegrationService @Inject constructor(
     }
 
     fun getAllConnectedAccounts(): Flow<List<SocialAccount>> {
-        return socialAccountRepository.getActiveAccounts()
+        return socialAccountRepository.getConnectedAccounts()
     }
 
     suspend fun disconnectAccount(accountId: String) {
-        val accounts = socialAccountRepository.getAllAccounts()
-        // Find and delete the account
+        // Implementation for disconnecting account
     }
 
     suspend fun syncMessagesFromPlatform(platform: SocialPlatform) {
-        // Sync messages from the social platform
+        // Implementation for syncing messages
     }
 
     suspend fun updateAccountToken(accountId: String, newToken: String) {
-        // Update access token for re-authentication
+        // Implementation for updating account token
     }
 
-    suspend fun getSocialMediaMessages(
+    fun getSocialMediaMessages(
         platform: SocialPlatform,
         conversationId: Long
     ): Flow<List<Message>> {
+        // In a real implementation, we might filter by platform in metadata
         return messageRepository.getMessagesByType("SOCIAL")
     }
 

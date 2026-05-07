@@ -8,8 +8,8 @@ import javax.inject.Inject
 class ShortcutRepository @Inject constructor(
     private val shortcutDao: ShortcutDao
 ) {
-    suspend fun insertShortcut(shortcut: Shortcut): Long {
-        return shortcutDao.insertShortcut(shortcut)
+    suspend fun insertShortcut(shortcut: Shortcut) {
+        shortcutDao.insertShortcut(shortcut)
     }
 
     suspend fun updateShortcut(shortcut: Shortcut) {
@@ -20,19 +20,12 @@ class ShortcutRepository @Inject constructor(
         shortcutDao.deleteShortcut(shortcut)
     }
 
-    fun getAllShortcuts(): Flow<List<Shortcut>> {
-        return shortcutDao.getAllShortcuts()
-    }
+    suspend fun getShortcutById(shortcutId: String): Shortcut? = shortcutDao.getShortcutById(shortcutId)
 
-    fun getShortcut(trigger: String): Flow<Shortcut?> {
-        return shortcutDao.getShortcut(trigger)
-    }
+    suspend fun getShortcutByTrigger(trigger: String): Shortcut? = shortcutDao.getShortcutByTrigger(trigger)
 
-    fun searchShortcuts(pattern: String): Flow<List<Shortcut>> {
-        return shortcutDao.searchShortcuts("%$pattern%")
-    }
+    fun getShortcutsByContact(contactPhoneNumber: String): Flow<List<Shortcut>> =
+        shortcutDao.getShortcutsByContact(contactPhoneNumber)
 
-    suspend fun incrementUsageCount(id: Long) {
-        shortcutDao.incrementUsageCount(id)
-    }
+    fun getGlobalShortcuts(): Flow<List<Shortcut>> = shortcutDao.getGlobalShortcuts()
 }

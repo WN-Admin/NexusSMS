@@ -2,7 +2,6 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
@@ -50,7 +49,7 @@ public final class SignatureDao_Impl implements SignatureDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final UserSignature entity) {
+          final UserSignature entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getName() == null) {
           statement.bindNull(2);
@@ -75,7 +74,7 @@ public final class SignatureDao_Impl implements SignatureDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final UserSignature entity) {
+          final UserSignature entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -88,7 +87,7 @@ public final class SignatureDao_Impl implements SignatureDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final UserSignature entity) {
+          final UserSignature entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getName() == null) {
           statement.bindNull(2);
@@ -110,58 +109,19 @@ public final class SignatureDao_Impl implements SignatureDao {
   @Override
   public Object insertSignature(final UserSignature signature,
       final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfUserSignature.insertAndReturnId(signature);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteSignature(final UserSignature signature,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfUserSignature.handle(signature);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateSignature(final UserSignature signature,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfUserSignature.handle(signature);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -170,7 +130,6 @@ public final class SignatureDao_Impl implements SignatureDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"user_signatures"}, new Callable<List<UserSignature>>() {
       @Override
-      @NonNull
       public List<UserSignature> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -221,7 +180,6 @@ public final class SignatureDao_Impl implements SignatureDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"user_signatures"}, new Callable<UserSignature>() {
       @Override
-      @Nullable
       public UserSignature call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {

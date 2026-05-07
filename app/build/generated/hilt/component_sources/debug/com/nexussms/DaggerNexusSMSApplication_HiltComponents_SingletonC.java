@@ -40,10 +40,16 @@ import com.nexussms.services.ScheduledMessageWorker;
 import com.nexussms.services.ScheduledMessageWorker_AssistedFactory;
 import com.nexussms.ui.viewmodels.ChatViewModel;
 import com.nexussms.ui.viewmodels.ChatViewModel_HiltModules;
+import com.nexussms.ui.viewmodels.ChatViewModel_HiltModules_BindsModule_Binds_LazyMapKey;
+import com.nexussms.ui.viewmodels.ChatViewModel_HiltModules_KeyModule_Provide_LazyMapKey;
 import com.nexussms.ui.viewmodels.ConversationListViewModel;
 import com.nexussms.ui.viewmodels.ConversationListViewModel_HiltModules;
+import com.nexussms.ui.viewmodels.ConversationListViewModel_HiltModules_BindsModule_Binds_LazyMapKey;
+import com.nexussms.ui.viewmodels.ConversationListViewModel_HiltModules_KeyModule_Provide_LazyMapKey;
 import com.nexussms.ui.viewmodels.SettingsViewModel;
 import com.nexussms.ui.viewmodels.SettingsViewModel_HiltModules;
+import com.nexussms.ui.viewmodels.SettingsViewModel_HiltModules_BindsModule_Binds_LazyMapKey;
+import com.nexussms.ui.viewmodels.SettingsViewModel_HiltModules_KeyModule_Provide_LazyMapKey;
 import dagger.hilt.android.ActivityRetainedLifecycle;
 import dagger.hilt.android.ViewModelLifecycle;
 import dagger.hilt.android.internal.builders.ActivityComponentBuilder;
@@ -61,8 +67,6 @@ import dagger.hilt.android.internal.modules.ApplicationContextModule;
 import dagger.hilt.android.internal.modules.ApplicationContextModule_ProvideContextFactory;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.DoubleCheck;
-import dagger.internal.IdentifierNameString;
-import dagger.internal.KeepFieldType;
 import dagger.internal.LazyClassKeyMap;
 import dagger.internal.MapBuilder;
 import dagger.internal.Preconditions;
@@ -83,7 +87,9 @@ import javax.annotation.processing.Generated;
     "rawtypes",
     "KotlinInternal",
     "KotlinInternalInJava",
-    "cast"
+    "cast",
+    "deprecation",
+    "nullness:initialization.field.uninitialized"
 })
 public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
   private DaggerNexusSMSApplication_HiltComponents_SingletonC() {
@@ -318,7 +324,7 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final ViewWithFragmentCImpl viewWithFragmentCImpl = this;
 
-    private ViewWithFragmentCImpl(SingletonCImpl singletonCImpl,
+    ViewWithFragmentCImpl(SingletonCImpl singletonCImpl,
         ActivityRetainedCImpl activityRetainedCImpl, ActivityCImpl activityCImpl,
         FragmentCImpl fragmentCImpl, View viewParam) {
       this.singletonCImpl = singletonCImpl;
@@ -339,9 +345,8 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final FragmentCImpl fragmentCImpl = this;
 
-    private FragmentCImpl(SingletonCImpl singletonCImpl,
-        ActivityRetainedCImpl activityRetainedCImpl, ActivityCImpl activityCImpl,
-        Fragment fragmentParam) {
+    FragmentCImpl(SingletonCImpl singletonCImpl, ActivityRetainedCImpl activityRetainedCImpl,
+        ActivityCImpl activityCImpl, Fragment fragmentParam) {
       this.singletonCImpl = singletonCImpl;
       this.activityRetainedCImpl = activityRetainedCImpl;
       this.activityCImpl = activityCImpl;
@@ -369,7 +374,7 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final ViewCImpl viewCImpl = this;
 
-    private ViewCImpl(SingletonCImpl singletonCImpl, ActivityRetainedCImpl activityRetainedCImpl,
+    ViewCImpl(SingletonCImpl singletonCImpl, ActivityRetainedCImpl activityRetainedCImpl,
         ActivityCImpl activityCImpl, View viewParam) {
       this.singletonCImpl = singletonCImpl;
       this.activityRetainedCImpl = activityRetainedCImpl;
@@ -386,12 +391,20 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final ActivityCImpl activityCImpl = this;
 
-    private ActivityCImpl(SingletonCImpl singletonCImpl,
-        ActivityRetainedCImpl activityRetainedCImpl, Activity activityParam) {
+    ActivityCImpl(SingletonCImpl singletonCImpl, ActivityRetainedCImpl activityRetainedCImpl,
+        Activity activityParam) {
       this.singletonCImpl = singletonCImpl;
       this.activityRetainedCImpl = activityRetainedCImpl;
 
 
+    }
+
+    Map keySetMapOfClassOfAndBooleanBuilder() {
+      MapBuilder mapBuilder = MapBuilder.<String, Boolean>newMapBuilder(3);
+      mapBuilder.put(ChatViewModel_HiltModules_KeyModule_Provide_LazyMapKey.lazyClassKeyName, ChatViewModel_HiltModules.KeyModule.provide());
+      mapBuilder.put(ConversationListViewModel_HiltModules_KeyModule_Provide_LazyMapKey.lazyClassKeyName, ConversationListViewModel_HiltModules.KeyModule.provide());
+      mapBuilder.put(SettingsViewModel_HiltModules_KeyModule_Provide_LazyMapKey.lazyClassKeyName, SettingsViewModel_HiltModules.KeyModule.provide());
+      return mapBuilder.build();
     }
 
     @Override
@@ -405,7 +418,7 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     @Override
     public Map<Class<?>, Boolean> getViewModelKeys() {
-      return LazyClassKeyMap.<Boolean>of(MapBuilder.<String, Boolean>newMapBuilder(3).put(LazyClassKeyProvider.com_nexussms_ui_viewmodels_ChatViewModel, ChatViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_nexussms_ui_viewmodels_ConversationListViewModel, ConversationListViewModel_HiltModules.KeyModule.provide()).put(LazyClassKeyProvider.com_nexussms_ui_viewmodels_SettingsViewModel, SettingsViewModel_HiltModules.KeyModule.provide()).build());
+      return LazyClassKeyMap.<Boolean>of(keySetMapOfClassOfAndBooleanBuilder());
     }
 
     @Override
@@ -422,24 +435,6 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
     public ViewComponentBuilder viewComponentBuilder() {
       return new ViewCBuilder(singletonCImpl, activityRetainedCImpl, activityCImpl);
     }
-
-    @IdentifierNameString
-    private static final class LazyClassKeyProvider {
-      static String com_nexussms_ui_viewmodels_ChatViewModel = "com.nexussms.ui.viewmodels.ChatViewModel";
-
-      static String com_nexussms_ui_viewmodels_ConversationListViewModel = "com.nexussms.ui.viewmodels.ConversationListViewModel";
-
-      static String com_nexussms_ui_viewmodels_SettingsViewModel = "com.nexussms.ui.viewmodels.SettingsViewModel";
-
-      @KeepFieldType
-      ChatViewModel com_nexussms_ui_viewmodels_ChatViewModel2;
-
-      @KeepFieldType
-      ConversationListViewModel com_nexussms_ui_viewmodels_ConversationListViewModel2;
-
-      @KeepFieldType
-      SettingsViewModel com_nexussms_ui_viewmodels_SettingsViewModel2;
-    }
   }
 
   private static final class ViewModelCImpl extends NexusSMSApplication_HiltComponents.ViewModelC {
@@ -449,20 +444,27 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final ViewModelCImpl viewModelCImpl = this;
 
-    private Provider<ChatViewModel> chatViewModelProvider;
+    Provider<ChatViewModel> chatViewModelProvider;
 
-    private Provider<ConversationListViewModel> conversationListViewModelProvider;
+    Provider<ConversationListViewModel> conversationListViewModelProvider;
 
-    private Provider<SettingsViewModel> settingsViewModelProvider;
+    Provider<SettingsViewModel> settingsViewModelProvider;
 
-    private ViewModelCImpl(SingletonCImpl singletonCImpl,
-        ActivityRetainedCImpl activityRetainedCImpl, SavedStateHandle savedStateHandleParam,
-        ViewModelLifecycle viewModelLifecycleParam) {
+    ViewModelCImpl(SingletonCImpl singletonCImpl, ActivityRetainedCImpl activityRetainedCImpl,
+        SavedStateHandle savedStateHandleParam, ViewModelLifecycle viewModelLifecycleParam) {
       this.singletonCImpl = singletonCImpl;
       this.activityRetainedCImpl = activityRetainedCImpl;
 
       initialize(savedStateHandleParam, viewModelLifecycleParam);
 
+    }
+
+    Map hiltViewModelMapMapOfClassOfAndProviderOfViewModelBuilder() {
+      MapBuilder mapBuilder = MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(3);
+      mapBuilder.put(ChatViewModel_HiltModules_BindsModule_Binds_LazyMapKey.lazyClassKeyName, ((Provider) (chatViewModelProvider)));
+      mapBuilder.put(ConversationListViewModel_HiltModules_BindsModule_Binds_LazyMapKey.lazyClassKeyName, ((Provider) (conversationListViewModelProvider)));
+      mapBuilder.put(SettingsViewModel_HiltModules_BindsModule_Binds_LazyMapKey.lazyClassKeyName, ((Provider) (settingsViewModelProvider)));
+      return mapBuilder.build();
     }
 
     @SuppressWarnings("unchecked")
@@ -475,30 +477,12 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     @Override
     public Map<Class<?>, javax.inject.Provider<ViewModel>> getHiltViewModelMap() {
-      return LazyClassKeyMap.<javax.inject.Provider<ViewModel>>of(MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(3).put(LazyClassKeyProvider.com_nexussms_ui_viewmodels_ChatViewModel, ((Provider) chatViewModelProvider)).put(LazyClassKeyProvider.com_nexussms_ui_viewmodels_ConversationListViewModel, ((Provider) conversationListViewModelProvider)).put(LazyClassKeyProvider.com_nexussms_ui_viewmodels_SettingsViewModel, ((Provider) settingsViewModelProvider)).build());
+      return LazyClassKeyMap.<javax.inject.Provider<ViewModel>>of(hiltViewModelMapMapOfClassOfAndProviderOfViewModelBuilder());
     }
 
     @Override
     public Map<Class<?>, Object> getHiltViewModelAssistedMap() {
       return Collections.<Class<?>, Object>emptyMap();
-    }
-
-    @IdentifierNameString
-    private static final class LazyClassKeyProvider {
-      static String com_nexussms_ui_viewmodels_ChatViewModel = "com.nexussms.ui.viewmodels.ChatViewModel";
-
-      static String com_nexussms_ui_viewmodels_ConversationListViewModel = "com.nexussms.ui.viewmodels.ConversationListViewModel";
-
-      static String com_nexussms_ui_viewmodels_SettingsViewModel = "com.nexussms.ui.viewmodels.SettingsViewModel";
-
-      @KeepFieldType
-      ChatViewModel com_nexussms_ui_viewmodels_ChatViewModel2;
-
-      @KeepFieldType
-      ConversationListViewModel com_nexussms_ui_viewmodels_ConversationListViewModel2;
-
-      @KeepFieldType
-      SettingsViewModel com_nexussms_ui_viewmodels_SettingsViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -518,17 +502,17 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
         this.id = id;
       }
 
-      @SuppressWarnings("unchecked")
       @Override
+      @SuppressWarnings("unchecked")
       public T get() {
         switch (id) {
-          case 0: // com.nexussms.ui.viewmodels.ChatViewModel 
+          case 0: // com.nexussms.ui.viewmodels.ChatViewModel
           return (T) new ChatViewModel(singletonCImpl.provideMessageRepositoryProvider.get(), singletonCImpl.provideConversationRepositoryProvider.get(), singletonCImpl.shortcodeExpansionServiceProvider.get(), singletonCImpl.rcsServiceProvider.get(), singletonCImpl.encryptionManagerProvider.get());
 
-          case 1: // com.nexussms.ui.viewmodels.ConversationListViewModel 
+          case 1: // com.nexussms.ui.viewmodels.ConversationListViewModel
           return (T) new ConversationListViewModel(singletonCImpl.provideConversationRepositoryProvider.get());
 
-          case 2: // com.nexussms.ui.viewmodels.SettingsViewModel 
+          case 2: // com.nexussms.ui.viewmodels.SettingsViewModel
           return (T) new SettingsViewModel(singletonCImpl.provideThemeRepositoryProvider.get(), singletonCImpl.provideSignatureRepositoryProvider.get(), singletonCImpl.provideSocialAccountRepositoryProvider.get(), singletonCImpl.themeManagerProvider.get());
 
           default: throw new AssertionError(id);
@@ -542,9 +526,9 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final ActivityRetainedCImpl activityRetainedCImpl = this;
 
-    private Provider<ActivityRetainedLifecycle> provideActivityRetainedLifecycleProvider;
+    Provider<ActivityRetainedLifecycle> provideActivityRetainedLifecycleProvider;
 
-    private ActivityRetainedCImpl(SingletonCImpl singletonCImpl,
+    ActivityRetainedCImpl(SingletonCImpl singletonCImpl,
         SavedStateHandleHolder savedStateHandleHolderParam) {
       this.singletonCImpl = singletonCImpl;
 
@@ -581,11 +565,11 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
         this.id = id;
       }
 
-      @SuppressWarnings("unchecked")
       @Override
+      @SuppressWarnings("unchecked")
       public T get() {
         switch (id) {
-          case 0: // dagger.hilt.android.ActivityRetainedLifecycle 
+          case 0: // dagger.hilt.android.ActivityRetainedLifecycle
           return (T) ActivityRetainedComponentManager_LifecycleModule_ProvideActivityRetainedLifecycleFactory.provideActivityRetainedLifecycle();
 
           default: throw new AssertionError(id);
@@ -599,7 +583,7 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final ServiceCImpl serviceCImpl = this;
 
-    private ServiceCImpl(SingletonCImpl singletonCImpl, Service serviceParam) {
+    ServiceCImpl(SingletonCImpl singletonCImpl, Service serviceParam) {
       this.singletonCImpl = singletonCImpl;
 
 
@@ -622,44 +606,44 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
 
     private final SingletonCImpl singletonCImpl = this;
 
-    private Provider<NexusSMSDatabase> provideDatabaseProvider;
+    Provider<NexusSMSDatabase> provideDatabaseProvider;
 
-    private Provider<ScheduledMessageRepository> provideScheduledMessageRepositoryProvider;
+    Provider<ScheduledMessageRepository> provideScheduledMessageRepositoryProvider;
 
-    private Provider<MessageRepository> provideMessageRepositoryProvider;
+    Provider<MessageRepository> provideMessageRepositoryProvider;
 
-    private Provider<ScheduledMessageWorker_AssistedFactory> scheduledMessageWorker_AssistedFactoryProvider;
+    Provider<ScheduledMessageWorker_AssistedFactory> scheduledMessageWorker_AssistedFactoryProvider;
 
-    private Provider<ConversationRepository> provideConversationRepositoryProvider;
+    Provider<ConversationRepository> provideConversationRepositoryProvider;
 
-    private Provider<ShortcutRepository> provideShortcutRepositoryProvider;
+    Provider<ShortcutRepository> provideShortcutRepositoryProvider;
 
-    private Provider<ShortcodeExpansionService> shortcodeExpansionServiceProvider;
+    Provider<ShortcodeExpansionService> shortcodeExpansionServiceProvider;
 
-    private Provider<RcsService> rcsServiceProvider;
+    Provider<RcsService> rcsServiceProvider;
 
-    private Provider<EncryptionManager> encryptionManagerProvider;
+    Provider<EncryptionManager> encryptionManagerProvider;
 
-    private Provider<ThemeRepository> provideThemeRepositoryProvider;
+    Provider<ThemeRepository> provideThemeRepositoryProvider;
 
-    private Provider<SignatureRepository> provideSignatureRepositoryProvider;
+    Provider<SignatureRepository> provideSignatureRepositoryProvider;
 
-    private Provider<SocialAccountRepository> provideSocialAccountRepositoryProvider;
+    Provider<SocialAccountRepository> provideSocialAccountRepositoryProvider;
 
-    private Provider<ThemeManager> themeManagerProvider;
+    Provider<ThemeManager> themeManagerProvider;
 
-    private SingletonCImpl(ApplicationContextModule applicationContextModuleParam) {
+    SingletonCImpl(ApplicationContextModule applicationContextModuleParam) {
       this.applicationContextModule = applicationContextModuleParam;
       initialize(applicationContextModuleParam);
 
     }
 
-    private Map<String, javax.inject.Provider<WorkerAssistedFactory<? extends ListenableWorker>>> mapOfStringAndProviderOfWorkerAssistedFactoryOf(
+    Map<String, javax.inject.Provider<WorkerAssistedFactory<? extends ListenableWorker>>> mapOfStringAndProviderOfWorkerAssistedFactoryOf(
         ) {
-      return Collections.<String, javax.inject.Provider<WorkerAssistedFactory<? extends ListenableWorker>>>singletonMap("com.nexussms.services.ScheduledMessageWorker", ((Provider) scheduledMessageWorker_AssistedFactoryProvider));
+      return Collections.<String, javax.inject.Provider<WorkerAssistedFactory<? extends ListenableWorker>>>singletonMap("com.nexussms.services.ScheduledMessageWorker", ((Provider) (scheduledMessageWorker_AssistedFactoryProvider)));
     }
 
-    private HiltWorkerFactory hiltWorkerFactory() {
+    HiltWorkerFactory hiltWorkerFactory() {
       return WorkerFactoryModule_ProvideFactoryFactory.provideFactory(mapOfStringAndProviderOfWorkerAssistedFactoryOf());
     }
 
@@ -710,10 +694,10 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
       return instance;
     }
 
-    private SmsReceiver injectSmsReceiver2(SmsReceiver instance) {
-      SmsReceiver_MembersInjector.injectMessageRepository(instance, provideMessageRepositoryProvider.get());
-      SmsReceiver_MembersInjector.injectConversationRepository(instance, provideConversationRepositoryProvider.get());
-      return instance;
+    private SmsReceiver injectSmsReceiver2(SmsReceiver instance2) {
+      SmsReceiver_MembersInjector.injectMessageRepository(instance2, provideMessageRepositoryProvider.get());
+      SmsReceiver_MembersInjector.injectConversationRepository(instance2, provideConversationRepositoryProvider.get());
+      return instance2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -726,11 +710,11 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
         this.id = id;
       }
 
-      @SuppressWarnings("unchecked")
       @Override
+      @SuppressWarnings("unchecked")
       public T get() {
         switch (id) {
-          case 0: // com.nexussms.services.ScheduledMessageWorker_AssistedFactory 
+          case 0: // com.nexussms.services.ScheduledMessageWorker_AssistedFactory
           return (T) new ScheduledMessageWorker_AssistedFactory() {
             @Override
             public ScheduledMessageWorker create(Context context, WorkerParameters params) {
@@ -738,40 +722,40 @@ public final class DaggerNexusSMSApplication_HiltComponents_SingletonC {
             }
           };
 
-          case 1: // com.nexussms.data.repository.ScheduledMessageRepository 
+          case 1: // com.nexussms.data.repository.ScheduledMessageRepository
           return (T) AppModule_ProvideScheduledMessageRepositoryFactory.provideScheduledMessageRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 2: // com.nexussms.data.database.NexusSMSDatabase 
+          case 2: // com.nexussms.data.database.NexusSMSDatabase
           return (T) AppModule_ProvideDatabaseFactory.provideDatabase(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 3: // com.nexussms.data.repository.MessageRepository 
+          case 3: // com.nexussms.data.repository.MessageRepository
           return (T) AppModule_ProvideMessageRepositoryFactory.provideMessageRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 4: // com.nexussms.data.repository.ConversationRepository 
+          case 4: // com.nexussms.data.repository.ConversationRepository
           return (T) AppModule_ProvideConversationRepositoryFactory.provideConversationRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 5: // com.nexussms.features.shortcodes.ShortcodeExpansionService 
+          case 5: // com.nexussms.features.shortcodes.ShortcodeExpansionService
           return (T) new ShortcodeExpansionService(singletonCImpl.provideShortcutRepositoryProvider.get());
 
-          case 6: // com.nexussms.data.repository.ShortcutRepository 
+          case 6: // com.nexussms.data.repository.ShortcutRepository
           return (T) AppModule_ProvideShortcutRepositoryFactory.provideShortcutRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 7: // com.nexussms.features.rcs.RcsService 
+          case 7: // com.nexussms.features.rcs.RcsService
           return (T) new RcsService(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.provideMessageRepositoryProvider.get());
 
-          case 8: // com.nexussms.security.EncryptionManager 
+          case 8: // com.nexussms.security.EncryptionManager
           return (T) new EncryptionManager(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
 
-          case 9: // com.nexussms.data.repository.ThemeRepository 
+          case 9: // com.nexussms.data.repository.ThemeRepository
           return (T) AppModule_ProvideThemeRepositoryFactory.provideThemeRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 10: // com.nexussms.data.repository.SignatureRepository 
+          case 10: // com.nexussms.data.repository.SignatureRepository
           return (T) AppModule_ProvideSignatureRepositoryFactory.provideSignatureRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 11: // com.nexussms.data.repository.SocialAccountRepository 
+          case 11: // com.nexussms.data.repository.SocialAccountRepository
           return (T) AppModule_ProvideSocialAccountRepositoryFactory.provideSocialAccountRepository(singletonCImpl.provideDatabaseProvider.get());
 
-          case 12: // com.nexussms.features.theme.ThemeManager 
+          case 12: // com.nexussms.features.theme.ThemeManager
           return (T) new ThemeManager(singletonCImpl.provideThemeRepositoryProvider.get());
 
           default: throw new AssertionError(id);

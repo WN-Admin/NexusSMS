@@ -1,16 +1,17 @@
 {
     "logs": [
         {
-            "outputFile": "com.nexussms.app-mergeDebugResources-64:/values-v16/values-v16.xml",
+            "outputFile": "com.nexussms.app-mergeDebugResources-71:/values-v16/values-v16.xml",
             "map": [
                 {
-                    "source": "/home/auz/.gradle/caches/8.13/transforms/5744780e24246faa822934d5d715a599/transformed/core-1.12.0/res/values-v16/values-v16.xml",
+                    "source": "/home/auz/.gradle/caches/9.4.1/transforms/f04bcf1aa3afaf8ba334b3226a1a232c/transformed/appcompat-1.6.1/res/values-v16/values-v16.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",
                         "startOffsets": "55",
-                        "endColumns": "65",
-                        "endOffsets": "116"
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
                     }
                 }
             ]
