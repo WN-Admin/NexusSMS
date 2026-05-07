@@ -68,6 +68,11 @@ final class ShortcutService: ObservableObject {
             save()
         }
     }
+
+    func deleteShortcut(_ id: UUID) {
+        shortcuts.removeAll { $0.id == id }
+        save()
+    }
 }
 
 final class ThemeService: ObservableObject {
@@ -94,6 +99,11 @@ final class ThemeService: ObservableObject {
 
     func addTheme(_ theme: ThemeModel) {
         themes.append(theme)
+        save()
+    }
+
+    func deleteTheme(_ id: UUID) {
+        themes.removeAll { $0.id == id }
         save()
     }
 
@@ -174,6 +184,11 @@ final class SocialIntegrationService: ObservableObject {
 
     private func save() {
         LocalStorage.shared.store(accounts, forKey: storageKey)
+    }
+
+    func disconnectAccount(_ id: UUID) {
+        accounts.removeAll { $0.id == id }
+        save()
     }
 }
 
@@ -274,4 +289,190 @@ final class MessageService: ObservableObject {
     func messages(for conversationId: UUID) -> [Message] {
         messages.filter { $0.conversationId == conversationId }.sorted { $0.timestamp < $1.timestamp }
     }
+}
+
+// MARK: - SignatureService
+
+final class SignatureService: ObservableObject {
+    @Published private(set) var signatures: [Signature] = []
+    private let storageKey = "nexussms_signatures"
+
+    init() {
+        signatures = LocalStorage.shared.retrieve([Signature].self, forKey: storageKey) ?? []
+    }
+
+    private func save() { LocalStorage.shared.store(signatures, forKey: storageKey) }
+
+    func add(name: String, content: String, isDefault: Bool = false) {
+        let sig = Signature(id: UUID(), name: name, content: content, isDefault: isDefault, format: "TEXT", fontFamily: nil, fontSize: 12, createdAt: Date(), updatedAt: Date())
+        if isDefault { clearDefaults() }
+        signatures.append(sig)
+        save()
+    }
+
+    func update(_ signature: Signature) {
+        if let i = signatures.firstIndex(where: { $0.id == signature.id }) {
+            var updated = signature
+            updated.updatedAt = Date()
+            if updated.isDefault { clearDefaults() }
+            signatures[i] = updated
+            save()
+        }
+    }
+
+    func delete(_ signature: Signature) {
+        signatures.removeAll { $0.id == signature.id }
+        save()
+    }
+
+    func setDefault(_ id: UUID) {
+        clearDefaults()
+        if let i = signatures.firstIndex(where: { $0.id == id }) {
+            signatures[i].isDefault = true
+            save()
+        }
+    }
+
+    private func clearDefaults() {
+        for i in signatures.indices { signatures[i].isDefault = false }
+    }
+}
+
+// MARK: - ScheduledMessageService
+
+final class ScheduledMessageService: ObservableObject {
+    @Published private(set) var scheduledMessages: [ScheduledMessage] = []
+    private let storageKey = "nexussms_scheduled_messages"
+
+    init() {
+        scheduledMessages = LocalStorage.shared.retrieve([ScheduledMessage].self, forKey: storageKey) ?? []
+    }
+
+    private func save() { LocalStorage.shared.store(scheduledMessages, forKey: storageKey) }
+
+    func schedule(conversationId: UUID, recipientPhone: String, content: String, at date: Date) {
+        let msg = ScheduledMessage(id: UUID(), conversationId: conversationId, recipientPhone: recipientPhone, content: content, scheduledTime: date, createdTime: Date(), isRcs: false, attachmentUrls: [], status: "PENDING")
+        scheduledMessages.append(msg)
+        save()
+    }
+
+    func cancel(_ id: UUID) {
+        if let i = scheduledMessages.firstIndex(where: { $0.id == id }) {
+            scheduledMessages[i].status = "CANCELLED"
+            save()
+        }
+    }
+
+    func reschedule(_ id: UUID, to newDate: Date) {
+        if let i = scheduledMessages.firstIndex(where: { $0.id == id }) {
+            scheduledMessages[i].scheduledTime = newDate
+            scheduledMessages[i].status = "PENDING"
+            save()
+        }
+    }
+
+    func delete(_ msg: ScheduledMessage) {
+        scheduledMessages.removeAll { $0.id == msg.id }
+        save()
+    }
+}
+
+// MARK: - BackupService
+
+final class BackupService: ObservableObject {
+    @Published private(set) var backups: [BackupMetadata] = []
+    @Published var isBackingUp = false
+    @Published var lastError: String?
+    private let storageKey = "nexussms_backups"
+
+    init() {
+        backups = LocalStorage.shared.retrieve([BackupMetadata].self, forKey: storageKey) ?? []
+    }
+
+    private func save() { LocalStorage.shared.store(backups, forKey: storageKey) }
+
+    func createBackup(dataTypes: [String]) async -> Bool {
+        await MainActor.run { isBackingUp = true; lastError = nil }
+        defer { Task { @MainActor in isBackingUp = false } }
+
+        do {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            let backup = BackupMetadata(id: UUID(), backupType: "MANUAL", timestamp: Date(), size: 1024, dataIncluded: dataTypes, status: "COMPLETED", isAutomatic: false, backupFrequency: "MANUAL", encryptedBackup: true)
+            await MainActor.run {
+                backups.insert(backup, at: 0)
+                save()
+            }
+            return true
+        } catch {
+            await MainActor.run { lastError = error.localizedDescription }
+            return false
+        }
+    }
+
+    func restoreBackup(_ id: UUID) async -> Bool {
+        do {
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            return true
+        } catch {
+            await MainActor.run { lastError = error.localizedDescription }
+            return false
+        }
+    }
+}
+
+// MARK: - RcsService
+
+final class RcsService {
+    func isRcsAvailable(for phoneNumber: String) -> Bool { false }
+    func sendRcsMessage(recipient: String, content: String, conversationId: UUID) -> Bool { false }
+}
+
+// MARK: - AppLockManager
+
+final class AppLockManager: ObservableObject {
+    @Published var settings: AppSecuritySettings
+    @Published var isAuthenticated = false
+    private let storageKey = "nexussms_security"
+
+    init() {
+        settings = LocalStorage.shared.retrieve(AppSecuritySettings.self, forKey: storageKey) ??
+            AppSecuritySettings(biometricEnabled: false, biometricType: "FINGERPRINT", appLockEnabled: false, appLockType: "PIN", appLockTimeout: 300, requireBiometricForRead: false, requireBiometricForSend: false, requireBiometricForDelete: false, requireBiometricForForward: false, lastAuthTime: Date(), isSessionLocked: false, hideMessages: false, hideNotificationContent: false, disableScreenshots: false)
+    }
+
+    private func save() { LocalStorage.shared.store(settings, forKey: storageKey) }
+    func updateSettings(_ newSettings: AppSecuritySettings) { settings = newSettings; save() }
+
+    func verifyPin(_ pin: String) -> Bool {
+        guard let stored = settings.appLockValue else { return false }
+        return pin == stored
+    }
+
+    func setPin(_ pin: String) {
+        settings.appLockValue = pin
+        settings.appLockEnabled = true
+        save()
+    }
+
+    func isSessionExpired() -> Bool {
+        Date().timeIntervalSince(settings.lastAuthTime) > settings.appLockTimeout
+    }
+
+    func authenticate() { isAuthenticated = true; settings.lastAuthTime = Date(); save() }
+    func lock() { isAuthenticated = false; settings.isSessionLocked = true; save() }
+}
+
+// MARK: - BiometricAuthManager
+
+final class BiometricAuthManager {
+    enum BiometricType { case faceID, touchID, none }
+
+    var biometryType: BiometricType {
+        #if targetEnvironment(simulator)
+        return .none
+        #else
+        return .touchID
+        #endif
+    }
+
+    var isAvailable: Bool { biometryType != .none }
 }

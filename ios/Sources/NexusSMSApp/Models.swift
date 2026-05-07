@@ -123,3 +123,62 @@ extension Color {
         )
     }
 }
+
+// MARK: - Additional Models
+
+struct Signature: Identifiable, Codable {
+    let id: UUID
+    var name: String
+    var content: String
+    var isDefault: Bool
+    var format: String
+    var fontFamily: String?
+    var fontSize: Int
+    let createdAt: Date
+    var updatedAt: Date
+}
+
+struct BackupMetadata: Identifiable, Codable {
+    let id: UUID
+    var backupType: String
+    var timestamp: Date
+    var size: Int64
+    var dataIncluded: [String]
+    var googleDriveFileId: String?
+    var status: String
+    var errorMessage: String?
+    var isAutomatic: Bool
+    var backupFrequency: String
+    var encryptedBackup: Bool
+}
+
+struct AppSecuritySettings: Codable {
+    var biometricEnabled: Bool
+    var biometricType: String
+    var appLockEnabled: Bool
+    var appLockType: String
+    var appLockValue: String?
+    var appLockTimeout: TimeInterval
+    var requireBiometricForRead: Bool
+    var requireBiometricForSend: Bool
+    var requireBiometricForDelete: Bool
+    var requireBiometricForForward: Bool
+    var lastAuthTime: Date
+    var isSessionLocked: Bool
+    var hideMessages: Bool
+    var hideNotificationContent: Bool
+    var disableScreenshots: Bool
+}
+
+struct ScheduledMessageSettings: Codable {
+    var notificationEnabled: Bool
+    var autoReschedule: Bool
+}
+
+struct BackupData: Codable {
+    let timestamp: Date
+    let version: String
+    let shortcuts: [Shortcut]
+    let signatures: [Signature]
+    let themes: [ThemeModel]
+}
