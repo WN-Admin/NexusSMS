@@ -10,7 +10,7 @@ import com.nexussms.data.repository.ScheduledMessageRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
-import java.util.Date
+import java.util.Calendar
 
 @HiltWorker
 class ScheduledMessageWorker @AssistedInject constructor(
@@ -23,27 +23,46 @@ class ScheduledMessageWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         return try {
             val scheduledMessages = scheduledMessageRepository.getPendingScheduledMessages().first()
-            val now = Date()
+            val nowTime = System.currentTimeMillis()
 
             for (scheduledMessage in scheduledMessages) {
-                if (scheduledMessage.scheduledTime.time <= now.time) {
+                if (scheduledMessage.scheduledTime <= nowTime) {
                     val message = Message(
                         conversationId = scheduledMessage.conversationId,
-                        senderId = "self",
-                        recipientId = scheduledMessage.recipientPhone,
+                        senderPhoneNumber = "self",
+                        recipientPhoneNumber = scheduledMessage.recipientPhoneNumber,
                         content = scheduledMessage.content,
-                        timestamp = Date(),
-                        isIncoming = false,
-                        isSent = true,
-                        messageType = if (scheduledMessage.isRCS) "RCS" else "SMS",
-                        attachmentUrls = scheduledMessage.attachmentUrls,
-                        encryptionType = "AES256"
+                        timestamp = System.currentTimeMillis(),
+                        type = "TEXT",
+                        status = "SENT",
+                        isEncrypted = true,
+                        encryptionAlgorithm = "AES256",
+                        mediaUrls = scheduledMessage.mediaUrls
                     )
                     messageRepository.insertMessage(message)
 
-                    scheduledMessageRepository.updateScheduledMessage(
-                        scheduledMessage.copy(status = "SENT")
+                    val sentAt = System.currentTimeMillis()
+                    val nextScheduledTime = computeNextScheduleTime(
+                        repeatType = scheduledMessage.repeatType,
+                        currentScheduledTime = scheduledMessage.scheduledTime
                     )
+
+                    if (nextScheduledTime != null &&
+                        (scheduledMessage.repeatUntil == null || nextScheduledTime <= scheduledMessage.repeatUntil)
+                    ) {
+                        // Keep repeating messages pending and move the next trigger time.
+                        scheduledMessageRepository.updateScheduledMessage(
+                            scheduledMessage.copy(
+                                scheduledTime = nextScheduledTime,
+                                status = "PENDING",
+                                sentAt = sentAt
+                            )
+                        )
+                    } else {
+                        scheduledMessageRepository.updateScheduledMessage(
+                            scheduledMessage.copy(status = "SENT", sentAt = sentAt)
+                        )
+                    }
                 }
             }
 
@@ -51,6 +70,31 @@ class ScheduledMessageWorker @AssistedInject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             Result.retry()
+        }
+    }
+
+    private fun computeNextScheduleTime(
+        repeatType: String,
+        currentScheduledTime: Long
+    ): Long? {
+        val calendar = Calendar.getInstance().apply { timeInMillis = currentScheduledTime }
+        return when (repeatType) {
+            "DAILY" -> {
+                calendar.add(Calendar.DAY_OF_YEAR, 1)
+                calendar.timeInMillis
+            }
+
+            "WEEKLY" -> {
+                calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                calendar.timeInMillis
+            }
+
+            "MONTHLY" -> {
+                calendar.add(Calendar.MONTH, 1)
+                calendar.timeInMillis
+            }
+
+            else -> null
         }
     }
 }

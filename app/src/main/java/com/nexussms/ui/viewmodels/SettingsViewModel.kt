@@ -3,7 +3,7 @@ package com.nexussms.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexussms.data.models.Theme
-import com.nexussms.data.models.UserSignature
+import com.nexussms.data.models.Signature
 import com.nexussms.data.repository.SignatureRepository
 import com.nexussms.data.repository.SocialAccountRepository
 import com.nexussms.data.repository.ThemeRepository
@@ -28,8 +28,8 @@ class SettingsViewModel @Inject constructor(
     private val _themes = MutableStateFlow<List<Theme>>(emptyList())
     val themes: StateFlow<List<Theme>> = _themes.asStateFlow()
 
-    private val _signatures = MutableStateFlow<List<UserSignature>>(emptyList())
-    val signatures: StateFlow<List<UserSignature>> = _signatures.asStateFlow()
+    private val _signatures = MutableStateFlow<List<Signature>>(emptyList())
+    val signatures: StateFlow<List<Signature>> = _signatures.asStateFlow()
 
     private val _currentTheme = MutableStateFlow<Theme?>(null)
     val currentTheme: StateFlow<Theme?> = _currentTheme.asStateFlow()
@@ -94,22 +94,22 @@ class SettingsViewModel @Inject constructor(
     fun createSignature(name: String, signature: String, isDefault: Boolean = false) {
         viewModelScope.launch {
             signatureRepository.insertSignature(
-                UserSignature(
+                Signature(
                     name = name,
-                    signature = signature,
+                    content = signature,
                     isDefault = isDefault
                 )
             )
         }
     }
 
-    fun updateSignature(signature: UserSignature) {
+    fun updateSignature(signature: Signature) {
         viewModelScope.launch {
             signatureRepository.updateSignature(signature)
         }
     }
 
-    fun deleteSignature(signature: UserSignature) {
+    fun deleteSignature(signature: Signature) {
         viewModelScope.launch {
             signatureRepository.deleteSignature(signature)
         }
@@ -119,5 +119,5 @@ class SettingsViewModel @Inject constructor(
         _isDarkMode.value = isDark
     }
 
-    fun getConnectedSocialAccounts() = socialAccountRepository.getActiveAccounts()
+    fun getConnectedSocialAccounts() = socialAccountRepository.getConnectedAccounts()
 }

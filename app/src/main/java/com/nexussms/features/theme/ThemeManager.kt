@@ -70,16 +70,16 @@ class ThemeManager @Inject constructor(
 
     suspend fun initializeDefaultThemes() {
         // Materialize the current theme list (one-shot) before deciding to seed.
-        val existing = themeRepository.getAllThemes().first()
+        val existing = themeRepository.getBuiltInThemes().first()
         if (existing.isEmpty()) {
             builtInThemes.forEach { themeRepository.insertTheme(it) }
         }
     }
 
     fun getAllThemes(): Flow<List<Theme>> = themeRepository.getAllThemes()
-    fun getDefaultThemes(): Flow<List<Theme>> = themeRepository.getDefaultThemes()
+    fun getDefaultThemes(): Flow<List<Theme>> = themeRepository.getBuiltInThemes()
     fun getCustomThemes(): Flow<List<Theme>> = themeRepository.getCustomThemes()
-    fun getTheme(id: Long): Flow<Theme?> = themeRepository.getTheme(id)
+    fun getTheme(id: String): Flow<Theme?> = themeRepository.getThemeFlow(id)
 
     suspend fun createCustomTheme(
         name: String,
@@ -90,7 +90,7 @@ class ThemeManager @Inject constructor(
         textColor: String,
         backgroundColor: String,
         isDarkMode: Boolean
-    ): Long {
+    ): String {
         val theme = Theme(
             name = name,
             primaryColor = primaryColor,
@@ -102,7 +102,8 @@ class ThemeManager @Inject constructor(
             isDarkMode = isDarkMode,
             isCustom = true
         )
-        return themeRepository.insertTheme(theme)
+        themeRepository.insertTheme(theme)
+        return theme.id
     }
 
     suspend fun updateTheme(theme: Theme) = themeRepository.updateTheme(theme)

@@ -2,13 +2,11 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
-import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
@@ -44,12 +42,6 @@ public final class ConversationDao_Impl implements ConversationDao {
 
   private final EntityDeletionOrUpdateAdapter<Conversation> __updateAdapterOfConversation;
 
-  private final SharedSQLiteStatement __preparedStmtOfIncrementUnreadCount;
-
-  private final SharedSQLiteStatement __preparedStmtOfClearUnreadCount;
-
-  private final SharedSQLiteStatement __preparedStmtOfDeleteConversationById;
-
   public ConversationDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfConversation = new EntityInsertionAdapter<Conversation>(__db) {
@@ -61,7 +53,7 @@ public final class ConversationDao_Impl implements ConversationDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Conversation entity) {
+          final Conversation entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getParticipantPhone() == null) {
           statement.bindNull(2);
@@ -120,7 +112,7 @@ public final class ConversationDao_Impl implements ConversationDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Conversation entity) {
+          final Conversation entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -133,7 +125,7 @@ public final class ConversationDao_Impl implements ConversationDao {
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Conversation entity) {
+          final Conversation entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getParticipantPhone() == null) {
           statement.bindNull(2);
@@ -184,163 +176,24 @@ public final class ConversationDao_Impl implements ConversationDao {
         statement.bindLong(13, entity.getId());
       }
     };
-    this.__preparedStmtOfIncrementUnreadCount = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "UPDATE conversations SET unreadCount = unreadCount + 1 WHERE id = ?";
-        return _query;
-      }
-    };
-    this.__preparedStmtOfClearUnreadCount = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "UPDATE conversations SET unreadCount = 0 WHERE id = ?";
-        return _query;
-      }
-    };
-    this.__preparedStmtOfDeleteConversationById = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "DELETE FROM conversations WHERE id = ?";
-        return _query;
-      }
-    };
   }
 
   @Override
   public Object insertConversation(final Conversation conversation,
       final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfConversation.insertAndReturnId(conversation);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteConversation(final Conversation conversation,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfConversation.handle(conversation);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateConversation(final Conversation conversation,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfConversation.handle(conversation);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Object incrementUnreadCount(final long id, final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfIncrementUnreadCount.acquire();
-        int _argIndex = 1;
-        _stmt.bindLong(_argIndex, id);
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfIncrementUnreadCount.release(_stmt);
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Object clearUnreadCount(final long id, final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfClearUnreadCount.acquire();
-        int _argIndex = 1;
-        _stmt.bindLong(_argIndex, id);
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfClearUnreadCount.release(_stmt);
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Object deleteConversationById(final long id,
-      final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteConversationById.acquire();
-        int _argIndex = 1;
-        _stmt.bindLong(_argIndex, id);
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfDeleteConversationById.release(_stmt);
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -349,7 +202,6 @@ public final class ConversationDao_Impl implements ConversationDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"conversations"}, new Callable<List<Conversation>>() {
       @Override
-      @NonNull
       public List<Conversation> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -454,7 +306,6 @@ public final class ConversationDao_Impl implements ConversationDao {
     _statement.bindLong(_argIndex, id);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"conversations"}, new Callable<Conversation>() {
       @Override
-      @Nullable
       public Conversation call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -563,7 +414,6 @@ public final class ConversationDao_Impl implements ConversationDao {
     }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"conversations"}, new Callable<Conversation>() {
       @Override
-      @Nullable
       public Conversation call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -666,7 +516,6 @@ public final class ConversationDao_Impl implements ConversationDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"conversations"}, new Callable<List<Conversation>>() {
       @Override
-      @NonNull
       public List<Conversation> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -761,6 +610,22 @@ public final class ConversationDao_Impl implements ConversationDao {
         _statement.release();
       }
     });
+  }
+
+  @Override
+  public Object incrementUnreadCount(final long id, final Continuation<? super Unit> $completion) {
+    __db.assertNotSuspendingTransaction();
+  }
+
+  @Override
+  public Object clearUnreadCount(final long id, final Continuation<? super Unit> $completion) {
+    __db.assertNotSuspendingTransaction();
+  }
+
+  @Override
+  public Object deleteConversationById(final long id,
+      final Continuation<? super Unit> $completion) {
+    __db.assertNotSuspendingTransaction();
   }
 
   @NonNull

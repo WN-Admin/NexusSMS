@@ -2,13 +2,11 @@ package com.nexussms.data.database;
 
 import android.database.Cursor;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
-import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
@@ -40,8 +38,6 @@ public final class ShortcutDao_Impl implements ShortcutDao {
 
   private final EntityDeletionOrUpdateAdapter<Shortcut> __updateAdapterOfShortcut;
 
-  private final SharedSQLiteStatement __preparedStmtOfIncrementUsageCount;
-
   public ShortcutDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfShortcut = new EntityInsertionAdapter<Shortcut>(__db) {
@@ -52,8 +48,7 @@ public final class ShortcutDao_Impl implements ShortcutDao {
       }
 
       @Override
-      protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Shortcut entity) {
+      protected void bind(@NonNull final SupportSQLiteStatement statement, final Shortcut entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getTrigger() == null) {
           statement.bindNull(2);
@@ -81,8 +76,7 @@ public final class ShortcutDao_Impl implements ShortcutDao {
       }
 
       @Override
-      protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Shortcut entity) {
+      protected void bind(@NonNull final SupportSQLiteStatement statement, final Shortcut entity) {
         statement.bindLong(1, entity.getId());
       }
     };
@@ -94,8 +88,7 @@ public final class ShortcutDao_Impl implements ShortcutDao {
       }
 
       @Override
-      protected void bind(@NonNull final SupportSQLiteStatement statement,
-          @Nullable final Shortcut entity) {
+      protected void bind(@NonNull final SupportSQLiteStatement statement, final Shortcut entity) {
         statement.bindLong(1, entity.getId());
         if (entity.getTrigger() == null) {
           statement.bindNull(2);
@@ -116,96 +109,24 @@ public final class ShortcutDao_Impl implements ShortcutDao {
         statement.bindLong(6, entity.getId());
       }
     };
-    this.__preparedStmtOfIncrementUsageCount = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "UPDATE shortcuts SET usageCount = usageCount + 1 WHERE id = ?";
-        return _query;
-      }
-    };
   }
 
   @Override
   public Object insertShortcut(final Shortcut shortcut,
       final Continuation<? super Long> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Long>() {
-      @Override
-      @NonNull
-      public Long call() throws Exception {
-        __db.beginTransaction();
-        try {
-          final Long _result = __insertionAdapterOfShortcut.insertAndReturnId(shortcut);
-          __db.setTransactionSuccessful();
-          return _result;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object deleteShortcut(final Shortcut shortcut,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __deletionAdapterOfShortcut.handle(shortcut);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
   public Object updateShortcut(final Shortcut shortcut,
       final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        __db.beginTransaction();
-        try {
-          __updateAdapterOfShortcut.handle(shortcut);
-          __db.setTransactionSuccessful();
-          return Unit.INSTANCE;
-        } finally {
-          __db.endTransaction();
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Object incrementUsageCount(final long id, final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfIncrementUsageCount.acquire();
-        int _argIndex = 1;
-        _stmt.bindLong(_argIndex, id);
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfIncrementUsageCount.release(_stmt);
-        }
-      }
-    }, $completion);
+    __db.assertNotSuspendingTransaction();
   }
 
   @Override
@@ -214,7 +135,6 @@ public final class ShortcutDao_Impl implements ShortcutDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"shortcuts"}, new Callable<List<Shortcut>>() {
       @Override
-      @NonNull
       public List<Shortcut> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -276,7 +196,6 @@ public final class ShortcutDao_Impl implements ShortcutDao {
     }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"shortcuts"}, new Callable<Shortcut>() {
       @Override
-      @Nullable
       public Shortcut call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -338,7 +257,6 @@ public final class ShortcutDao_Impl implements ShortcutDao {
     }
     return CoroutinesRoom.createFlow(__db, false, new String[] {"shortcuts"}, new Callable<List<Shortcut>>() {
       @Override
-      @NonNull
       public List<Shortcut> call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
@@ -386,6 +304,11 @@ public final class ShortcutDao_Impl implements ShortcutDao {
         _statement.release();
       }
     });
+  }
+
+  @Override
+  public Object incrementUsageCount(final long id, final Continuation<? super Unit> $completion) {
+    __db.assertNotSuspendingTransaction();
   }
 
   @NonNull

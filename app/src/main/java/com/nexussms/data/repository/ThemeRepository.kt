@@ -8,8 +8,8 @@ import javax.inject.Inject
 class ThemeRepository @Inject constructor(
     private val themeDao: ThemeDao
 ) {
-    suspend fun insertTheme(theme: Theme): Long {
-        return themeDao.insertTheme(theme)
+    suspend fun insertTheme(theme: Theme) {
+        themeDao.insertTheme(theme)
     }
 
     suspend fun updateTheme(theme: Theme) {
@@ -20,19 +20,15 @@ class ThemeRepository @Inject constructor(
         themeDao.deleteTheme(theme)
     }
 
-    fun getAllThemes(): Flow<List<Theme>> {
-        return themeDao.getAllThemes()
-    }
+    suspend fun getThemeById(themeId: String): Theme? = themeDao.getThemeById(themeId)
 
-    fun getTheme(id: Long): Flow<Theme?> {
-        return themeDao.getTheme(id)
-    }
+    fun getThemeFlow(themeId: String): Flow<Theme?> = themeDao.getThemeFlow(themeId)
 
-    fun getDefaultThemes(): Flow<List<Theme>> {
-        return themeDao.getDefaultThemes()
-    }
+    suspend fun getDefaultTheme(): Theme? = themeDao.getDefaultTheme()
 
-    fun getCustomThemes(): Flow<List<Theme>> {
-        return themeDao.getCustomThemes()
-    }
+    fun getAllThemes(): Flow<List<Theme>> = themeDao.getAllThemes()
+
+    fun getBuiltInThemes(): Flow<List<Theme>> = themeDao.getBuiltInThemes()
+
+    fun getCustomThemes(): Flow<List<Theme>> = themeDao.getCustomThemes()
 }

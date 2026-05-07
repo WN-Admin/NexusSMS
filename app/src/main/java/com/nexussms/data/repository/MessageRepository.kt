@@ -8,47 +8,36 @@ import javax.inject.Inject
 class MessageRepository @Inject constructor(
     private val messageDao: MessageDao
 ) {
-    suspend fun insertMessage(message: Message): Long {
-        return messageDao.insertMessage(message)
+    suspend fun insertMessage(message: Message): Long =
+        messageDao.insertMessage(message)
+
+    suspend fun insertMessages(messages: List<Message>) {
+        messageDao.insertMessages(messages)
     }
 
-    suspend fun updateMessage(message: Message) {
-        messageDao.updateMessage(message)
-    }
+    suspend fun updateMessage(message: Message) = messageDao.updateMessage(message)
 
-    suspend fun deleteMessage(message: Message) {
-        messageDao.deleteMessage(message)
-    }
+    suspend fun deleteMessage(message: Message) = messageDao.deleteMessage(message)
 
-    fun getMessage(id: Long): Flow<Message?> {
-        return messageDao.getMessage(id)
-    }
+    suspend fun getMessageById(messageId: String): Message? = messageDao.getMessageById(messageId)
 
-    fun getConversationMessages(conversationId: Long): Flow<List<Message>> {
-        return messageDao.getConversationMessages(conversationId)
-    }
+    fun getMessagesByType(type: String): Flow<List<Message>> = messageDao.getMessagesByType(type)
 
-    fun getUnreadMessages(conversationId: Long): Flow<List<Message>> {
-        return messageDao.getUnreadMessages(conversationId)
-    }
+    fun getMessagesByConversation(
+        conversationId: String,
+        limit: Int,
+        offset: Int
+    ): Flow<List<Message>> = messageDao.getMessagesByConversation(conversationId, limit, offset)
 
-    fun getUnreadCount(conversationId: Long): Flow<Int> {
-        return messageDao.getUnreadCount(conversationId)
-    }
+    fun getMessagesByStatus(
+        conversationId: String,
+        status: String
+    ): Flow<List<Message>> = messageDao.getMessagesByStatus(conversationId, status)
 
-    suspend fun deleteConversationMessages(conversationId: Long) {
-        messageDao.deleteConversationMessages(conversationId)
-    }
+    fun getConversationMessages(conversationId: String): Flow<List<Message>> =
+        messageDao.getMessagesByConversation(conversationId, 100, 0)
 
-    suspend fun markConversationAsRead(conversationId: Long) {
-        messageDao.markConversationAsRead(conversationId)
-    }
+    fun getPendingScheduledMessages(): Flow<List<Message>> = messageDao.getPendingScheduledMessages()
 
-    fun getRecentMessages(startTime: Long, limit: Int = 100): Flow<List<Message>> {
-        return messageDao.getRecentMessages(startTime, limit)
-    }
-
-    fun getMessagesByType(type: String): Flow<List<Message>> {
-        return messageDao.getMessagesByType(type)
-    }
+    suspend fun hardDeleteMessage(messageId: String) = messageDao.hardDeleteMessage(messageId)
 }

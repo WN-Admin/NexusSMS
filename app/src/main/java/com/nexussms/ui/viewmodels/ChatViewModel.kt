@@ -48,13 +48,15 @@ class ChatViewModel @Inject constructor(
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
 
-    fun loadConversation(conversationId: Long) {
+    fun loadConversation(conversationId: String) {
         // Cancel previous observers, then start fresh ones in parallel.
         conversationJob?.cancel()
         messagesJob?.cancel()
 
-        conversationJob = conversationRepository.getConversation(conversationId)
-            .onEach { _currentConversation.value = it }
+        conversationJob = conversationRepository.getAllConversations()
+            .onEach { list -> 
+                _currentConversation.value = list.find { it.id == conversationId }
+            }
             .launchIn(viewModelScope)
 
         messagesJob = messageRepository.getConversationMessages(conversationId)
@@ -66,7 +68,7 @@ class ChatViewModel @Inject constructor(
         _messageText.value = text
     }
 
-    fun sendMessage(conversationId: Long, recipientPhone: String) {
+    fun sendMessage(conversationId: String, recipientPhone: String) {
         viewModelScope.launch {
             _isSending.value = true
             try {
@@ -78,14 +80,14 @@ class ChatViewModel @Inject constructor(
                     "SMS" -> {
                         val message = Message(
                             conversationId = conversationId,
-                            senderId = "self",
-                            recipientId = recipientPhone,
+                            senderPhoneNumber = "self",
+                            recipientPhoneNumber = recipientPhone,
                             content = messageContent,
-                            timestamp = Date(),
-                            isIncoming = false,
-                            isSent = true,
-                            messageType = "SMS",
-                            encryptionType = "AES256"
+                            timestamp = System.currentTimeMillis(),
+                            type = "TEXT",
+                            status = "SENT",
+                            isEncrypted = true,
+                            encryptionAlgorithm = "AES256"
                         )
                         messageRepository.insertMessage(message)
                     }
@@ -114,10 +116,9 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun markAsRead(conversationId: Long) {
+    fun markAsRead(conversationId: String) {
         viewModelScope.launch {
-            messageRepository.markConversationAsRead(conversationId)
-            conversationRepository.clearUnreadCount(conversationId)
+            conversationRepository.markConversationAsRead(conversationId)
         }
     }
 
@@ -125,13 +126,12 @@ class ChatViewModel @Inject constructor(
         _selectedMessageType.value = type
     }
 
-    fun addReaction(messageId: Long, reaction: String) {
+    fun addReaction(messageId: String, reaction: String) {
         viewModelScope.launch {
-            val message = messageRepository.getMessage(messageId).first()
+            val message = messageRepository.getMessageById(messageId)
             if (message != null) {
                 val updatedMessage = message.copy(
-                    hasReactions = true,
-                    reactionData = reaction
+                    reactions = reaction
                 )
                 messageRepository.updateMessage(updatedMessage)
             }

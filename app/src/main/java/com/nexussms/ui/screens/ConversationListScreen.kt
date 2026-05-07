@@ -161,7 +161,7 @@ fun ConversationItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = conversation.participantName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                    text = conversation.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 24.sp
@@ -175,7 +175,7 @@ fun ConversationItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = conversation.participantName.ifEmpty { conversation.participantPhone },
+                    text = conversation.displayName.ifEmpty { conversation.participantPhoneNumbers },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

@@ -8,8 +8,8 @@ import javax.inject.Inject
 class ConversationRepository @Inject constructor(
     private val conversationDao: ConversationDao
 ) {
-    suspend fun insertConversation(conversation: Conversation): Long {
-        return conversationDao.insertConversation(conversation)
+    suspend fun insertConversation(conversation: Conversation) {
+        conversationDao.insertConversation(conversation)
     }
 
     suspend fun updateConversation(conversation: Conversation) {
@@ -20,31 +20,45 @@ class ConversationRepository @Inject constructor(
         conversationDao.deleteConversation(conversation)
     }
 
-    suspend fun deleteConversationById(id: Long) {
-        conversationDao.deleteConversationById(id)
-    }
+    suspend fun getConversationById(conversationId: String): Conversation? =
+        conversationDao.getConversationById(conversationId)
+
+    fun getPinnedConversations(): Flow<List<Conversation>> =
+        conversationDao.getPinnedConversations()
 
     fun getAllConversations(): Flow<List<Conversation>> {
         return conversationDao.getAllConversations()
     }
 
-    fun getConversation(id: Long): Flow<Conversation?> {
-        return conversationDao.getConversation(id)
+    fun getArchivedConversations(): Flow<List<Conversation>> {
+        return conversationDao.getArchivedConversations()
     }
 
-    fun getConversationByPhone(phone: String): Flow<Conversation?> {
-        return conversationDao.getConversationByPhone(phone)
+    fun getUnreadConversations(): Flow<List<Conversation>> {
+        return conversationDao.getUnreadConversations()
     }
 
-    fun getPinnedConversations(): Flow<List<Conversation>> {
-        return conversationDao.getPinnedConversations()
+    suspend fun markConversationAsRead(conversationId: String) {
+        val conversation = conversationDao.getConversationById(conversationId)
+        if (conversation != null) {
+            conversationDao.updateConversation(conversation.copy(unreadCount = 0))
+        }
     }
 
-    suspend fun incrementUnreadCount(id: Long) {
-        conversationDao.incrementUnreadCount(id)
+    suspend fun clearUnreadCount(conversationId: String) {
+        val conversation = conversationDao.getConversationById(conversationId)
+        if (conversation != null) {
+            conversationDao.updateConversation(conversation.copy(unreadCount = 0))
+        }
     }
 
-    suspend fun clearUnreadCount(id: Long) {
-        conversationDao.clearUnreadCount(id)
+    suspend fun deleteConversationById(conversationId: String) {
+        val conversation = conversationDao.getConversationById(conversationId)
+        if (conversation != null) {
+            conversationDao.deleteConversation(conversation)
+        }
     }
+
+    suspend fun findConversationWithParticipant(phoneNumber: String): Conversation? =
+        conversationDao.findConversationWithParticipant(phoneNumber)
 }

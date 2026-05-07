@@ -49,49 +49,49 @@ class ConversationListViewModel @Inject constructor(
         _selectedConversation.value = conversation
     }
 
-    fun deleteConversation(conversationId: Long) {
+    fun deleteConversation(conversationId: String) {
         viewModelScope.launch {
             conversationRepository.deleteConversationById(conversationId)
         }
     }
 
-    fun pinConversation(conversationId: Long) {
+    fun pinConversation(conversationId: String) {
         viewModelScope.launch {
-            val conversation = conversationRepository.getConversation(conversationId).first()
+            val conversation = conversationRepository.getConversationById(conversationId)
             if (conversation != null) {
                 conversationRepository.updateConversation(conversation.copy(isPinned = true))
             }
         }
     }
 
-    fun unpinConversation(conversationId: Long) {
+    fun unpinConversation(conversationId: String) {
         viewModelScope.launch {
-            val conversation = conversationRepository.getConversation(conversationId).first()
+            val conversation = conversationRepository.getConversationById(conversationId)
             if (conversation != null) {
                 conversationRepository.updateConversation(conversation.copy(isPinned = false))
             }
         }
     }
 
-    fun muteConversation(conversationId: Long) {
+    fun muteConversation(conversationId: String) {
         viewModelScope.launch {
-            val conversation = conversationRepository.getConversation(conversationId).first()
+            val conversation = conversationRepository.getConversationById(conversationId)
             if (conversation != null) {
                 conversationRepository.updateConversation(conversation.copy(isMuted = true))
             }
         }
     }
 
-    fun unmuteConversation(conversationId: Long) {
+    fun unmuteConversation(conversationId: String) {
         viewModelScope.launch {
-            val conversation = conversationRepository.getConversation(conversationId).first()
+            val conversation = conversationRepository.getConversationById(conversationId)
             if (conversation != null) {
                 conversationRepository.updateConversation(conversation.copy(isMuted = false))
             }
         }
     }
 
-    fun markAsRead(conversationId: Long) {
+    fun markAsRead(conversationId: String) {
         viewModelScope.launch {
             conversationRepository.clearUnreadCount(conversationId)
         }

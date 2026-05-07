@@ -8,13 +8,12 @@ import com.nexussms.data.models.Conversation
 import com.nexussms.data.models.Message
 import com.nexussms.data.repository.ConversationRepository
 import com.nexussms.data.repository.MessageRepository
+import com.nexussms.security.EncryptionManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.Date
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -25,6 +24,9 @@ class SmsReceiver : BroadcastReceiver() {
 
     @Inject
     lateinit var conversationRepository: ConversationRepository
+
+    @Inject
+    lateinit var encryptionManager: EncryptionManager
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
@@ -38,42 +40,51 @@ class SmsReceiver : BroadcastReceiver() {
             try {
                 for (smsMessage in smsMessages) {
                     val senderPhoneNumber = smsMessage.originatingAddress ?: continue
-                    val messageBody = smsMessage.messageBody ?: ""
+                    val rawBody = smsMessage.messageBody ?: ""
                     val timestamp = smsMessage.timestampMillis
+                    val isEncryptedPayload = rawBody.startsWith("ENC:")
+                    val messageBody = if (isEncryptedPayload) {
+                        encryptionManager.decryptAES256(rawBody.removePrefix("ENC:"))
+                    } else {
+                        rawBody
+                    }
 
                     // Look up or create the conversation.
-                    val existing = conversationRepository.getConversationByPhone(senderPhoneNumber).first()
-                    val conversationId = existing?.id ?: conversationRepository.insertConversation(
-                        Conversation(
-                            participantPhone = senderPhoneNumber,
-                            participantName = senderPhoneNumber,
+                    val conversation = conversationRepository.findConversationWithParticipant(senderPhoneNumber)
+                    val conversationId = if (conversation == null) {
+                        val newConversation = Conversation(
+                            participantPhoneNumbers = senderPhoneNumber,
+                            displayName = senderPhoneNumber,
                             lastMessage = messageBody,
-                            lastMessageTime = Date(timestamp),
-                            messageType = "SMS"
+                            lastMessageTime = timestamp
                         )
-                    )
+                        conversationRepository.insertConversation(newConversation)
+                        newConversation.id
+                    } else {
+                        conversation.id
+                    }
 
                     // Save the inbound message.
                     val message = Message(
                         conversationId = conversationId,
-                        senderId = senderPhoneNumber,
-                        recipientId = "self",
+                        senderPhoneNumber = senderPhoneNumber,
+                        recipientPhoneNumber = "self",
                         content = messageBody,
-                        timestamp = Date(timestamp),
-                        isIncoming = true,
-                        isSent = true,
-                        isDelivered = true,
-                        messageType = "SMS"
+                        timestamp = timestamp,
+                        status = "DELIVERED",
+                        type = "TEXT",
+                        isEncrypted = isEncryptedPayload,
+                        encryptionAlgorithm = if (isEncryptedPayload) "AES256" else null
                     )
                     messageRepository.insertMessage(message)
 
                     // Update conversation metadata.
-                    val current = conversationRepository.getConversation(conversationId).first()
+                    val current = conversationRepository.getConversationById(conversationId)
                     if (current != null) {
                         conversationRepository.updateConversation(
                             current.copy(
                                 lastMessage = messageBody,
-                                lastMessageTime = Date(timestamp),
+                                lastMessageTime = timestamp,
                                 unreadCount = current.unreadCount + 1
                             )
                         )
