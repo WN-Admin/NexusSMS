@@ -6,6 +6,7 @@ import com.nexussms.data.models.Conversation
 import com.nexussms.data.models.Message
 import com.nexussms.data.repository.ConversationRepository
 import com.nexussms.data.repository.MessageRepository
+import com.nexussms.data.repository.ScheduledMessageRepository
 import com.nexussms.features.rcs.RcsService
 import com.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexussms.security.EncryptionManager
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val conversationRepository: ConversationRepository,
+    private val scheduledMessageRepository: ScheduledMessageRepository,
     private val shortcodeExpansionService: ShortcodeExpansionService,
     private val rcsService: RcsService,
     private val encryptionManager: EncryptionManager
@@ -44,6 +46,9 @@ class ChatViewModel @Inject constructor(
 
     private val _selectedMessageType = MutableStateFlow("SMS")
     val selectedMessageType: StateFlow<String> = _selectedMessageType.asStateFlow()
+
+    private val _shortcutSuggestions = MutableStateFlow<List<ShortcodeExpansionService.ShortcutPreview>>(emptyList())
+    val shortcutSuggestions: StateFlow<List<ShortcodeExpansionService.ShortcutPreview>> = _shortcutSuggestions.asStateFlow()
 
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
@@ -66,6 +71,7 @@ class ChatViewModel @Inject constructor(
 
     fun updateMessageText(text: String) {
         _messageText.value = text
+        checkForShortcutTriggers(text)
     }
 
     fun sendMessage(conversationId: String, recipientPhone: String) {
@@ -110,6 +116,14 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun sendLocation(conversationId: String, locationUrl: String) {
+        viewModelScope.launch {
+            _messageText.value = locationUrl
+            val recipient = _currentConversation.value?.participantPhoneNumbers ?: ""
+            sendMessage(conversationId, recipient)
+        }
+    }
+
     fun deleteMessage(message: Message) {
         viewModelScope.launch {
             messageRepository.deleteMessage(message)
@@ -136,5 +150,56 @@ class ChatViewModel @Inject constructor(
                 messageRepository.updateMessage(updatedMessage)
             }
         }
+    }
+
+    fun attachFile(uri: String) {
+        viewModelScope.launch {
+            val current = _messageText.value
+            _messageText.value = if (current.isBlank()) "[Attachment: $uri]" else "$current [Attachment: $uri]"
+        }
+    }
+
+    fun scheduleMessage(conversationId: String, recipientPhone: String, scheduleAt: Long) {
+        viewModelScope.launch {
+            val content = _messageText.value
+            if (content.isBlank()) return@launch
+            val scheduledMessage = com.nexussms.data.models.ScheduledMessage(
+                conversationId = conversationId,
+                recipientPhoneNumber = recipientPhone,
+                content = content,
+                scheduledTime = scheduleAt,
+                status = "PENDING"
+            )
+            scheduledMessageRepository.insertScheduledMessage(scheduledMessage)
+            _messageText.value = ""
+            _shortcutSuggestions.value = emptyList()
+        }
+    }
+
+    private fun checkForShortcutTriggers(text: String) {
+        viewModelScope.launch {
+            val words = text.split(" ")
+            val lastWord = words.lastOrNull() ?: ""
+            if (lastWord.startsWith("!") || lastWord.startsWith("@")) {
+                _shortcutSuggestions.value = shortcodeExpansionService.previewExpansions(lastWord)
+            } else {
+                _shortcutSuggestions.value = emptyList()
+            }
+        }
+    }
+
+    fun applyShortcutSuggestion(trigger: String, expansion: String) {
+        val text = _messageText.value
+        val words = text.split(" ")
+        val lastWord = words.lastOrNull() ?: ""
+        if (lastWord == trigger) {
+            val prefix = text.substringBeforeLast(lastWord)
+            _messageText.value = prefix + expansion
+        }
+        _shortcutSuggestions.value = emptyList()
+    }
+
+    companion object {
+        private val SHORTCODE_PATTERN = listOf("!", "@")
     }
 }

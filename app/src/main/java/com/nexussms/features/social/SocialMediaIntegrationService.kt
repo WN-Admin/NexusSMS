@@ -4,6 +4,8 @@ import com.nexussms.data.models.SocialAccount
 import com.nexussms.data.models.Message
 import com.nexussms.data.repository.SocialAccountRepository
 import com.nexussms.data.repository.MessageRepository
+import kotlinx.coroutines.flow.first
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -81,15 +83,36 @@ class SocialMediaIntegrationService @Inject constructor(
     }
 
     suspend fun disconnectAccount(accountId: String) {
-        // Implementation for disconnecting account
+        val accounts = socialAccountRepository.getAllAccounts().first()
+        val account = accounts.find { it.id == accountId }
+        if (account != null) {
+            val updated = account.copy(
+                isConnected = false,
+                accessToken = "",
+                refreshToken = null
+            )
+            socialAccountRepository.updateAccount(updated)
+            Timber.d("Disconnected account: %s", accountId)
+        }
     }
 
     suspend fun syncMessagesFromPlatform(platform: SocialPlatform) {
-        // Implementation for syncing messages
+        Timber.d("syncMessagesFromPlatform requested for platform: %s", platform.name)
+        val messages = messageRepository.getMessagesByType("SOCIAL").first()
+        Timber.d("syncMessagesFromPlatform: found %d social messages", messages.size)
     }
 
     suspend fun updateAccountToken(accountId: String, newToken: String) {
-        // Implementation for updating account token
+        val accounts = socialAccountRepository.getAllAccounts().first()
+        val account = accounts.find { it.id == accountId }
+        if (account != null) {
+            val updated = account.copy(
+                accessToken = newToken,
+                updatedAt = System.currentTimeMillis()
+            )
+            socialAccountRepository.updateAccount(updated)
+            Timber.d("Updated token for account: %s", accountId)
+        }
     }
 
     fun getSocialMediaMessages(

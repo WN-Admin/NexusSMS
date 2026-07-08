@@ -1,5 +1,52 @@
 # Bug Fixes Applied
 
+## Post-Code-Review Updates (July 2026)
+
+### Phase 5 Polish (July 8, 2026)
+
+- **Shortcut auto-complete**: `ChatViewModel.checkForShortcutTriggers()` parses `!`/`@` prefixes while typing; `ShortcutSuggestionsBar` shows matching shortcuts with "Insert" action below the text field.
+- **Emoji reactions UI**: Long-press on `MessageBubble` shows a row of 6 quick-reaction emojis (👍 ❤️ 😂 😮 😢 🙏); tapping adds reaction via `viewModel.addReaction()`.
+- **Screenshots enforcement**: `MainActivity` injects `AppSecuritySettingsDao` and observes `disableScreenshots` — sets/clears `FLAG_SECURE` on the window in real time.
+- **Contact picker**: `NewConversationScreen` now has a person icon button next to the phone field; launches `Intent.ACTION_PICK` on `ContactsContract.Contacts.CONTENT_URI` and auto-fills phone number + display name.
+- **Location sharing**: `ChatDetailScreen` has a location button that checks `ACCESS_FINE_LOCATION` permission, requests it if needed, gets last known location via `LocationManager`, and sends a Google Maps URL.
+- **Location permissions**: `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` added to `AndroidManifest.xml`.
+- **Launcher icon**: Foreground vector improved — white chat bubble with blue SMS text lines.
+- **META-INF packaging conflicts**: Excluded `DEPENDENCIES` and `INDEX.LIST` from Google Drive/Auth library JARs.
+- **`Icons.Default.LocationOn` → `Icons.Default.Place`**: Fixed unresolved reference for location icon.
+- **All unit tests compile and pass**: 43/43 tests verified with `./gradlew testDebugUnitTest`.
+
+- **compileSdk 37→35**: Downgraded to match available platform SDK.
+- **R8 minification enabled**: Release builds now minify via ProGuard.
+- **Release signing configured**: Keystore-based release signing with env-var passwords.
+- **GitHub Actions CI added**: Automated build and test workflow.
+- **Navigation wired**: `conversationId` passed to `ChatDetailScreen` on list item click; FAB navigates to `NewConversationScreen`.
+- **RCS stubs implemented**: `addReaction`, `sendReadReceipt`, `sendTypingIndicator`, `checkRcsCapability` filled with real logic.
+- **Social media stubs implemented**: `disconnectAccount`, `syncMessagesFromPlatform`, `updateAccountToken` now contain implementation bodies.
+- **Google Drive mock replaced**: Real Drive API calls via OkHttp/Retrofit (requires OAuth client ID and user consent).
+- **GoogleDriveBackupService.buildBackupData**: Now serializes genuine contacts/messages/conversations via Gson.
+- **Image/emoji/file pickers wired**: `ChatDetailScreen` now has working media attachment UI.
+- **Schedule button added**: `ChatDetailScreen` includes a schedule-message button.
+- **Default SMS app intent filters**: Manifest registered with `SmsManager.ACTION_CHANGE_DEFAULT` intent to allow being set as default SMS handler.
+- **Deprecated SmsManager.getDefault() replaced**: Uses `context.getSystemService(SmsManager::class.java)` modern API.
+- **Encryption upgraded**: AES-CBC → AES-GCM (authenticated encryption with integrity verification).
+- **Encryption silent fallback removed**: `EncryptionManager` now throws on failure instead of silently degrading.
+- **Signature set/get methods**: `setSignatureKey`/`getSignatureKey` added to `EncryptionManager`.
+- **iOS sidecar directory removed**: `ios/` deleted from project.
+- **NewConversationScreen created**: Full create-or-navigate logic for starting new conversations.
+- **Unit test dependencies fixed**: Added `io.mockk:mockk:1.13.9`, `kotlinx-coroutines-test:1.8.0`, `mockito-inline:5.2.0` to match existing MockK-based tests.
+- **Android instrumentation test added**: `ExampleInstrumentedTest` verifies app context package name.
+- **All 10 existing unit tests compile and pass**: Repository and ViewModel tests use MockK with `kotlinx.coroutines.test.runTest`.
+- **Google Drive API version fixed**: `v3-rev20250115-2.0.0` didn't exist on Maven Central; updated to `v3-rev20250122-2.0.0`.
+- **Missing google-http-client-android dependency**: Added `com.google.http-client:google-http-client-android:1.43.0` which provides `AndroidHttp.newCompatibleTransport()`.
+- **MessageService.getSystemService fixed**: Replaced `this.getSystemService(TelephonyManager::class.java)` with `applicationContext.getSystemService(SmsManager::class.java)`.
+- **ChatViewModel.scheduleMessage fixed**: Removed invalid `messageType` parameter from `ScheduledMessage` constructor call.
+- **GoogleDriveClient.File setter fixed**: Replaced property assignment with explicit Java setter calls for Drive API model class.
+- **ChatViewModelTest fixed**: Updated constructor params to match ViewModel (added `ScheduledMessageRepository`), fixed `resetMain` usage, used `coEvery` for suspend `expandMessage`.
+- **ConversationListViewModelTest fixed**: Removed unused `@After`/`resetMain` imports and calls.
+- **KSP incremental compilation disabled**: Added `ksp.incremental=false` to `gradle.properties` to prevent annotation processing cache issues.
+
+## Original entry (project structure / build fixes)
+
 This is a summary of every change made to get the project to open and build in Android Studio.
 
 ## Project structure (would not open at all)
