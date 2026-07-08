@@ -9,3 +9,4 @@ local.properties
 *.keystore
 *.log
 .DS_Store
+opencode.json
