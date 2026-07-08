@@ -4,6 +4,7 @@ import com.nexussms.data.models.Conversation
 import com.nexussms.data.models.Message
 import com.nexussms.data.repository.ConversationRepository
 import com.nexussms.data.repository.MessageRepository
+import com.nexussms.data.repository.ScheduledMessageRepository
 import com.nexussms.features.rcs.RcsService
 import com.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexussms.security.EncryptionManager
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -25,6 +25,7 @@ import org.junit.Test
 class ChatViewModelTest {
     private val messageRepository = mockk<MessageRepository>()
     private val conversationRepository = mockk<ConversationRepository>()
+    private val scheduledMessageRepository = mockk<ScheduledMessageRepository>()
     private val shortcodeExpansionService = mockk<ShortcodeExpansionService>()
     private val rcsService = mockk<RcsService>()
     private val encryptionManager = mockk<EncryptionManager>()
@@ -37,15 +38,11 @@ class ChatViewModelTest {
         viewModel = ChatViewModel(
             messageRepository,
             conversationRepository,
+            scheduledMessageRepository,
             shortcodeExpansionService,
             rcsService,
             encryptionManager
         )
-    }
-
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
     }
 
     @Test
@@ -88,7 +85,7 @@ class ChatViewModelTest {
         viewModel.updateMessageText(messageText)
         assertEquals(messageText, viewModel.messageText.value)
 
-        every { shortcodeExpansionService.expandMessage(messageText) } returns expandedText
+        coEvery { shortcodeExpansionService.expandMessage(messageText) } returns expandedText
         every { encryptionManager.generateMessageSignature(expandedText) } returns signedText
         coEvery { messageRepository.insertMessage(any()) } returns 1L
 

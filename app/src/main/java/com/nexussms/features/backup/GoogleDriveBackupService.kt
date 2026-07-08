@@ -259,11 +259,54 @@ class GoogleDriveBackupService @Inject constructor(
     fun getBackupHistory(): Flow<List<BackupMetadata>> = backupMetadataDao.getAllBackups()
 
     private suspend fun buildBackupData(dataTypes: List<String>): BackupData {
+        val shortcuts = if (dataTypes.contains("shortcuts")) {
+            shortcutRepository.getGlobalShortcuts().first().map { s ->
+                ShortcutData(
+                    trigger = s.trigger,
+                    expansion = s.expansion,
+                    description = s.description,
+                    category = s.category,
+                    isActive = s.isActive,
+                    priority = s.priority
+                )
+            }
+        } else emptyList()
+
+        val signatures = if (dataTypes.contains("signatures")) {
+            signatureRepository.getAllSignatures().first().map { s ->
+                SignatureData(
+                    name = s.name,
+                    content = s.content,
+                    isDefault = s.isDefault,
+                    format = s.format,
+                    fontFamily = s.fontFamily,
+                    fontSize = s.fontSize
+                )
+            }
+        } else emptyList()
+
+        val themes = if (dataTypes.contains("themes")) {
+            themeRepository.getAllThemes().first().map { t ->
+                ThemeData(
+                    name = t.name,
+                    primaryColor = t.primaryColor,
+                    secondaryColor = t.secondaryColor,
+                    backgroundColor = t.backgroundColor,
+                    surfaceColor = t.surfaceColor,
+                    textColor = t.textColor,
+                    bubbleColorSent = t.bubbleColorSent,
+                    bubbleColorReceived = t.bubbleColorReceived,
+                    isDarkMode = t.isDarkMode,
+                    bubbleStyle = t.bubbleStyle
+                )
+            }
+        } else emptyList()
+
         return BackupData(
             timestamp = System.currentTimeMillis(),
-            shortcuts = emptyList(),
-            signatures = emptyList(),
-            themes = emptyList()
+            shortcuts = shortcuts,
+            signatures = signatures,
+            themes = themes
         )
     }
 }

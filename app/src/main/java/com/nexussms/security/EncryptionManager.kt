@@ -9,10 +9,8 @@ import androidx.security.crypto.MasterKey
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
+import javax.crypto.spec.GCMParameterSpec
 import java.security.KeyStore
-import java.security.SecureRandom
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,36 +32,25 @@ class EncryptionManager @Inject constructor(
     )
 
     fun encryptAES256(plaintext: String): String {
-        return try {
-            val secretKey = getOrCreateAESKey()
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            val iv = ByteArray(16)
-            SecureRandom().nextBytes(iv)
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(iv))
-
-            val encryptedBytes = cipher.doFinal(plaintext.toByteArray())
-            val combined = iv + encryptedBytes
-            Base64.encodeToString(combined, Base64.DEFAULT)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            plaintext
-        }
+        val secretKey = getOrCreateAESKey()
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        val iv = cipher.iv
+        val encryptedBytes = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        val combined = iv + encryptedBytes
+        return Base64.encodeToString(combined, Base64.DEFAULT)
     }
 
     fun decryptAES256(encryptedText: String): String {
-        return try {
-            val secretKey = getOrCreateAESKey()
-            val combined = Base64.decode(encryptedText, Base64.DEFAULT)
-            val iv = combined.sliceArray(0 until 16)
-            val encryptedBytes = combined.sliceArray(16 until combined.size)
+        val secretKey = getOrCreateAESKey()
+        val combined = Base64.decode(encryptedText, Base64.DEFAULT)
+        val iv = combined.sliceArray(0 until 12)
+        val encryptedBytes = combined.sliceArray(12 until combined.size)
 
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv))
-            String(cipher.doFinal(encryptedBytes))
-        } catch (e: Exception) {
-            e.printStackTrace()
-            encryptedText
-        }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = GCMParameterSpec(128, iv)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, spec)
+        return String(cipher.doFinal(encryptedBytes), Charsets.UTF_8)
     }
 
     fun storeSecureData(key: String, value: String) {
@@ -93,8 +80,8 @@ class EncryptionManager @Inject constructor(
                 "nexussms_aes_key",
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
             )
-                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setRandomizedEncryptionRequired(true)
                 .build()
 
@@ -103,9 +90,17 @@ class EncryptionManager @Inject constructor(
         }
     }
 
+    fun setSignature(signature: String) {
+        storeSecureData("user_signature", signature)
+    }
+
+    fun getSignature(): String {
+        return retrieveSecureData("user_signature") ?: ""
+    }
+
     fun generateMessageSignature(message: String): String {
-        val signature = encryptedSharedPreferences.getString("user_signature", "")
-        return if (!signature.isNullOrEmpty()) {
+        val signature = getSignature()
+        return if (signature.isNotEmpty()) {
             "$message\n\n$signature"
         } else {
             message

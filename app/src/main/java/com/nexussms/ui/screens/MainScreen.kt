@@ -70,7 +70,24 @@ fun MainScreen() {
             modifier = Modifier.padding(paddingValues)
         ) {
             composable("conversations") {
-                ConversationListScreen()
+                ConversationListScreen(
+                    onConversationClick = { conversationId ->
+                        navController.navigate("chat/$conversationId")
+                    },
+                    onNewConversationClick = {
+                        navController.navigate("new_conversation")
+                    }
+                )
+            }
+            composable("new_conversation") {
+                NewConversationScreen(
+                    onConversationCreated = { conversationId ->
+                        navController.navigate("chat/$conversationId") {
+                            popUpTo("conversations")
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(
                 route = "chat/{conversationId}",

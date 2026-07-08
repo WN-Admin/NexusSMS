@@ -80,7 +80,12 @@ class MessageService : Service() {
     fun sendSMS(phoneNumber: String, content: String, encryptionType: String = "NONE") {
         scope.launch(Dispatchers.IO) {
             try {
-                val smsManager = SmsManager.getDefault()
+                val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    applicationContext.getSystemService(SmsManager::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    SmsManager.getDefault()
+                }
                 val isEncrypted = encryptionType != "NONE"
                 val contentWithSignature = encryptionManager.generateMessageSignature(content)
                 val payload = when (encryptionType) {

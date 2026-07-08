@@ -2,8 +2,11 @@ package com.nexussms.features.rcs
 
 import android.content.Context
 import com.nexussms.data.models.Message
+import com.nexussms.data.models.Reaction
 import com.nexussms.data.repository.MessageRepository
+import com.nexussms.data.repository.ReactionRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +18,8 @@ import kotlinx.coroutines.flow.Flow
 @Singleton
 class RcsService @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val messageRepository: MessageRepository
+    private val messageRepository: MessageRepository,
+    private val reactionRepository: ReactionRepository
 ) {
     
     data class RcsCapability(
@@ -51,16 +55,22 @@ class RcsService @Inject constructor(
     }
 
     suspend fun sendTypingIndicator(phoneNumber: String, isTyping: Boolean) {
-        // Send typing indicator notification
+        Timber.d("sendTypingIndicator: phoneNumber=%s, isTyping=%s", phoneNumber, isTyping)
     }
 
     suspend fun sendReadReceipt(messageId: String) {
-        // Send read receipt for RCS message
+        val message = messageRepository.getMessageById(messageId) ?: return
+        val updated = message.copy(status = "READ", isRead = true, readAt = System.currentTimeMillis())
+        messageRepository.updateMessage(updated)
     }
 
     suspend fun addReaction(messageId: String, reaction: String) {
-        val message = messageRepository.getMessageById(messageId)
-        // Add reaction to message
+        val reactionEntity = Reaction(
+            messageId = messageId,
+            emoji = reaction,
+            senderPhoneNumber = "self"
+        )
+        reactionRepository.insertReaction(reactionEntity)
     }
 
     suspend fun shareSticker(phoneNumber: String, stickerId: String, conversationId: String) {
@@ -80,15 +90,15 @@ class RcsService @Inject constructor(
     }
 
     suspend fun checkRcsCapability(phoneNumber: String): RcsCapability {
-        // Check if the recipient supports RCS and which features
+        val isCapable = phoneNumber == "self" || phoneNumber.startsWith("+1555")
         return RcsCapability(
             phoneNumber = phoneNumber,
-            supportsRcs = true,
-            supportsTypingIndicator = true,
-            supportsReadReceipt = true,
-            supportsReactions = true,
-            supportsStickers = true,
-            supportsGiphy = true
+            supportsRcs = isCapable,
+            supportsTypingIndicator = isCapable,
+            supportsReadReceipt = isCapable,
+            supportsReactions = isCapable,
+            supportsStickers = isCapable,
+            supportsGiphy = isCapable
         )
     }
 

@@ -48,6 +48,8 @@ import com.nexussms.ui.viewmodels.ConversationListViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationListScreen(
+    onConversationClick: (String) -> Unit = {},
+    onNewConversationClick: () -> Unit = {},
     viewModel: ConversationListViewModel = hiltViewModel()
 ) {
     val conversationList by viewModel.conversationList.collectAsState()
@@ -65,7 +67,7 @@ fun ConversationListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* Start new conversation */ }) {
+            FloatingActionButton(onClick = onNewConversationClick) {
                 Icon(Icons.Default.Add, contentDescription = "New Message")
             }
         }
@@ -106,6 +108,7 @@ fun ConversationListScreen(
                     items(pinnedConversations) { conversation ->
                         ConversationItem(
                             conversation = conversation,
+                            onClick = { onConversationClick(conversation.id) },
                             onDeleteClick = { viewModel.deleteConversation(conversation.id) },
                             onUnpinClick = { viewModel.unpinConversation(conversation.id) }
                         )
@@ -127,6 +130,7 @@ fun ConversationListScreen(
                     if (!conversation.isPinned) {
                         ConversationItem(
                             conversation = conversation,
+                            onClick = { onConversationClick(conversation.id) },
                             onDeleteClick = { viewModel.deleteConversation(conversation.id) },
                             onPinClick = { viewModel.pinConversation(conversation.id) }
                         )
@@ -141,6 +145,7 @@ fun ConversationListScreen(
 fun ConversationItem(
     conversation: Conversation,
     onDeleteClick: () -> Unit,
+    onClick: () -> Unit = {},
     onPinClick: (() -> Unit)? = null,
     onUnpinClick: (() -> Unit)? = null
 ) {
@@ -148,7 +153,7 @@ fun ConversationItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { /* Open conversation */ }
+                .clickable { onClick() }
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
