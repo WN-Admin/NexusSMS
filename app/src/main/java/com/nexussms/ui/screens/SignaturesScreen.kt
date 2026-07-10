@@ -65,6 +65,7 @@ sealed class SignatureDialogState {
     object Hidden : SignatureDialogState()
     data class AddEdit(val signature: Signature? = null) : SignatureDialogState()
     data class Delete(val signature: Signature) : SignatureDialogState()
+    data class Templates(val onSelect: (String, String) -> Unit) : SignatureDialogState()
 }
 
 @HiltViewModel
@@ -104,6 +105,12 @@ class SignaturesViewModel @Inject constructor(
 
     fun hideDialog() {
         _dialogState.value = SignatureDialogState.Hidden
+    }
+
+    fun showTemplatesDialog() {
+        _dialogState.value = SignatureDialogState.Templates { name, content ->
+            saveSignature(null, name, content, false)
+        }
     }
 
     fun saveSignature(
@@ -184,8 +191,17 @@ fun SignaturesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { viewModel.showAddDialog() }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Signature")
+            Column {
+                FloatingActionButton(
+                    onClick = { viewModel.showTemplatesDialog() },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Templates")
+                }
+                FloatingActionButton(onClick = { viewModel.showAddDialog() }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Signature")
+                }
             }
         }
     ) { paddingValues ->
@@ -242,6 +258,13 @@ fun SignaturesScreen(
                     Text("Cancel")
                 }
             }
+        )
+        is SignatureDialogState.Templates -> SignatureTemplatesDialog(
+            onSelect = { name, content ->
+                state.onSelect(name, content)
+                viewModel.hideDialog()
+            },
+            onDismiss = { viewModel.hideDialog() }
         )
         SignatureDialogState.Hidden -> { /* no dialog */ }
     }
@@ -392,6 +415,67 @@ private fun SignatureEditDialog(
                 Text("Save")
             }
         },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SignatureTemplatesDialog(
+    onSelect: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val templates = listOf(
+        "Professional" to "Best regards,\n[Your Name]",
+        "Casual" to "Cheers,\n[Your Name]",
+        "Auto-Response" to "Thanks for your message! I'll get back to you soon.\n- [Your Name]",
+        "Work Hours" to "Sent from my phone. I'll respond during business hours (9AM-5PM).",
+        "Out of Office" to "I'm currently out of the office with limited access to email. I'll respond as soon as possible."
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Signature Templates") },
+        text = {
+            Column {
+                Text(
+                    "Choose a template to get started:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                templates.forEach { (name, content) ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { onSelect(name, content) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = content,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")

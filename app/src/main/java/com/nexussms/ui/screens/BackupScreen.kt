@@ -24,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,145 +49,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.nexussms.data.database.BackupMetadataDao
-import com.nexussms.data.database.NexusSMSDatabase
 import com.nexussms.data.models.BackupMetadata
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import com.nexussms.features.backup.GoogleDriveBackupService
+import com.nexussms.ui.viewmodels.BackupViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.inject.Inject
-
-enum class BackupStatus {
-    Idle, BackingUp, Completed, Error
-}
-
-data class BackupUiState(
-    val backupStatus: BackupStatus = BackupStatus.Idle,
-    val backupHistory: List<BackupMetadata> = emptyList(),
-    val isAutomaticBackupEnabled: Boolean = false,
-    val backupFrequency: String = "DAILY",
-    val errorMessage: String? = null,
-    val isLoading: Boolean = true,
-    val progress: Float = 0f
-)
-
-@HiltViewModel
-class BackupViewModel @Inject constructor(
-    database: NexusSMSDatabase
-) : ViewModel() {
-
-    private val backupMetadataDao: BackupMetadataDao = database.backupMetadataDao()
-
-    private val _uiState = MutableStateFlow(BackupUiState())
-    val uiState: StateFlow<BackupUiState> = _uiState.asStateFlow()
-
-    init {
-        backupMetadataDao.getAllBackups()
-            .onEach { backups ->
-                _uiState.value = _uiState.value.copy(
-                    backupHistory = backups,
-                    isLoading = false
-                )
-            }
-            .launchIn(viewModelScope)
-    }
-
-    fun performBackup() {
-        if (_uiState.value.backupStatus == BackupStatus.BackingUp) return
-
-        _uiState.value = _uiState.value.copy(
-            backupStatus = BackupStatus.BackingUp,
-            errorMessage = null,
-            progress = 0f
-        )
-
-        viewModelScope.launch {
-            try {
-                val backup = BackupMetadata(
-                    backupType = "GOOGLE_DRIVE",
-                    status = "IN_PROGRESS",
-                    dataIncluded = """["shortcuts","signatures","themes","settings"]""",
-                    isAutomatic = false
-                )
-                backupMetadataDao.insertBackup(backup)
-
-                for (i in 1..10) {
-                    kotlinx.coroutines.delay(200)
-                    _uiState.value = _uiState.value.copy(progress = i / 10f)
-                }
-
-                backupMetadataDao.updateBackup(
-                    backup.copy(
-                        status = "COMPLETED",
-                        size = 1024 * 50,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
-
-                _uiState.value = _uiState.value.copy(
-                    backupStatus = BackupStatus.Completed,
-                    progress = 1f
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    backupStatus = BackupStatus.Error,
-                    errorMessage = e.message ?: "Backup failed",
-                    progress = 0f
-                )
-            }
-        }
-    }
-
-    fun restoreFromBackup(backup: BackupMetadata) {
-        viewModelScope.launch {
-            try {
-                _uiState.value = _uiState.value.copy(backupStatus = BackupStatus.BackingUp)
-                kotlinx.coroutines.delay(1500)
-                _uiState.value = _uiState.value.copy(
-                    backupStatus = BackupStatus.Completed,
-                    errorMessage = null
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    backupStatus = BackupStatus.Error,
-                    errorMessage = e.message ?: "Restore failed"
-                )
-            }
-        }
-    }
-
-    fun toggleAutomaticBackup(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(isAutomaticBackupEnabled = enabled)
-    }
-
-    fun setBackupFrequency(frequency: String) {
-        _uiState.value = _uiState.value.copy(backupFrequency = frequency)
-    }
-
-    fun resetStatus() {
-        _uiState.value = _uiState.value.copy(
-            backupStatus = BackupStatus.Idle,
-            errorMessage = null,
-            progress = 0f
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupScreen(
     viewModel: BackupViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val backups by viewModel.backups.collectAsState()
+    val isBackingUp by viewModel.isBackingUp.collectAsState()
+    val backupError by viewModel.backupError.collectAsState()
 
     Scaffold(
         topBar = {
@@ -212,25 +87,22 @@ fun BackupScreen(
 
             item {
                 BackupActionCard(
-                    backupStatus = uiState.backupStatus,
-                    progress = uiState.progress,
-                    errorMessage = uiState.errorMessage,
-                    onBackupNow = { viewModel.performBackup() },
-                    onDismissError = { viewModel.resetStatus() }
+                    isBackingUp = isBackingUp,
+                    errorMessage = backupError,
+                    onBackupNow = { viewModel.createManualBackup() },
+                    onDismissError = { viewModel.clearError() }
                 )
             }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 ScheduleSettingsCard(
-                    isAutomaticBackupEnabled = uiState.isAutomaticBackupEnabled,
-                    backupFrequency = uiState.backupFrequency,
-                    onToggleAutomatic = { viewModel.toggleAutomaticBackup(it) },
-                    onFrequencyChange = { viewModel.setBackupFrequency(it) }
+                    onScheduleBackup = { frequency -> viewModel.scheduleAutoBackup(frequency) },
+                    onCancelBackup = { viewModel.cancelAutoBackup() }
                 )
             }
 
-            if (uiState.backupHistory.isNotEmpty()) {
+            if (backups.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -244,10 +116,10 @@ fun BackupScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                items(uiState.backupHistory, key = { it.id }) { backup ->
+                items(backups, key = { it.id }) { backup ->
                     BackupHistoryItem(
                         backup = backup,
-                        onRestore = { viewModel.restoreFromBackup(backup) }
+                        onRestore = { viewModel.restoreBackup(backup) }
                     )
                 }
             }
@@ -259,8 +131,7 @@ fun BackupScreen(
 
 @Composable
 private fun BackupActionCard(
-    backupStatus: BackupStatus,
-    progress: Float,
+    isBackingUp: Boolean,
     errorMessage: String?,
     onBackupNow: () -> Unit,
     onDismissError: () -> Unit
@@ -292,51 +163,42 @@ private fun BackupActionCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = when (backupStatus) {
-                    BackupStatus.Idle -> "Back up your shortcuts, signatures, themes, and settings"
-                    BackupStatus.BackingUp -> "Backing up your data..."
-                    BackupStatus.Completed -> "Backup completed successfully!"
-                    BackupStatus.Error -> "Backup failed"
+                text = when {
+                    isBackingUp -> "Backing up your data..."
+                    errorMessage != null -> "Backup failed"
+                    else -> "Back up your shortcuts, signatures, and themes"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            when (backupStatus) {
-                BackupStatus.BackingUp -> {
+            when {
+                isBackingUp -> {
                     LinearProgressIndicator(
-                        progress = { progress },
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "${(progress * 100).toInt()}%",
+                        text = "Uploading...",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                BackupStatus.Error -> {
-                    if (errorMessage != null) {
-                        Text(
-                            text = errorMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextButton(onClick = onDismissError) {
-                            Text("Dismiss")
-                        }
-                    }
-                }
-                BackupStatus.Completed -> {
+                errorMessage != null -> {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     TextButton(onClick = onDismissError) {
-                        Text("Done")
+                        Text("Dismiss")
                     }
                 }
-                BackupStatus.Idle -> {
+                else -> {
                     Button(
                         onClick = onBackupNow,
                         modifier = Modifier.fillMaxWidth(),
@@ -357,13 +219,13 @@ private fun BackupActionCard(
 
 @Composable
 private fun ScheduleSettingsCard(
-    isAutomaticBackupEnabled: Boolean,
-    backupFrequency: String,
-    onToggleAutomatic: (Boolean) -> Unit,
-    onFrequencyChange: (String) -> Unit
+    onScheduleBackup: (String) -> Unit,
+    onCancelBackup: () -> Unit
 ) {
     val frequencies = listOf("HOURLY", "DAILY", "WEEKLY", "MONTHLY")
     var frequencyExpanded by remember { mutableStateOf(false) }
+    var selectedFrequency by remember { mutableStateOf("DAILY") }
+    var isAutomaticEnabled by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -396,12 +258,19 @@ private fun ScheduleSettingsCard(
                     )
                 }
                 Switch(
-                    checked = isAutomaticBackupEnabled,
-                    onCheckedChange = onToggleAutomatic
+                    checked = isAutomaticEnabled,
+                    onCheckedChange = {
+                        isAutomaticEnabled = it
+                        if (it) {
+                            onScheduleBackup(selectedFrequency)
+                        } else {
+                            onCancelBackup()
+                        }
+                    }
                 )
             }
 
-            if (isAutomaticBackupEnabled) {
+            if (isAutomaticEnabled) {
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))
@@ -416,7 +285,7 @@ private fun ScheduleSettingsCard(
                     )
                     Box {
                         TextButton(onClick = { frequencyExpanded = true }) {
-                            Text(backupFrequency)
+                            Text(selectedFrequency)
                         }
                         DropdownMenu(
                             expanded = frequencyExpanded,
@@ -426,8 +295,9 @@ private fun ScheduleSettingsCard(
                                 DropdownMenuItem(
                                     text = { Text(freq) },
                                     onClick = {
-                                        onFrequencyChange(freq)
+                                        selectedFrequency = freq
                                         frequencyExpanded = false
+                                        onScheduleBackup(freq)
                                     }
                                 )
                             }

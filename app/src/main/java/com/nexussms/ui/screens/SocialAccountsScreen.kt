@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Link
@@ -23,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +60,7 @@ import javax.inject.Inject
 sealed class SocialAccountDialogState {
     object Hidden : SocialAccountDialogState()
     data class Delete(val account: SocialAccount) : SocialAccountDialogState()
+    object Connect : SocialAccountDialogState()
 }
 
 @HiltViewModel
@@ -89,6 +92,26 @@ class SocialAccountsViewModel @Inject constructor(
 
     fun hideDialog() {
         _dialogState.value = SocialAccountDialogState.Hidden
+    }
+
+    fun showConnectDialog() {
+        _dialogState.value = SocialAccountDialogState.Connect
+    }
+
+    fun connectAccount(platform: String, username: String, displayName: String) {
+        viewModelScope.launch {
+            socialAccountRepository.insertAccount(
+                SocialAccount(
+                    platform = platform,
+                    userId = username,
+                    username = username,
+                    displayName = displayName,
+                    isConnected = true,
+                    accessToken = "mock_token_${System.currentTimeMillis()}"
+                )
+            )
+            hideDialog()
+        }
     }
 
     fun toggleConnection(account: SocialAccount) {
@@ -128,6 +151,11 @@ fun SocialAccountsScreen(
                     titleContentColor = Color.White
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { viewModel.showConnectDialog() }) {
+                Icon(Icons.Default.Add, contentDescription = "Connect Account")
+            }
         }
     ) { paddingValues ->
         if (isLoading) {
@@ -205,6 +233,12 @@ fun SocialAccountsScreen(
                     Text("Cancel")
                 }
             }
+        )
+        is SocialAccountDialogState.Connect -> ConnectAccountDialog(
+            onConnect = { platform, username, displayName ->
+                viewModel.connectAccount(platform, username, displayName)
+            },
+            onDismiss = { viewModel.hideDialog() }
         )
         SocialAccountDialogState.Hidden -> { /* no dialog */ }
     }
@@ -294,4 +328,125 @@ private fun SocialAccountItem(
             )
         }
     }
+}
+
+@Composable
+private fun ConnectAccountDialog(
+    onConnect: (platform: String, username: String, displayName: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedPlatform by remember { mutableStateOf("DISCORD") }
+    var username by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var usernameError by remember { mutableStateOf(false) }
+
+    val platforms = listOf("DISCORD", "TELEGRAM", "FACEBOOK_MESSENGER", "VIBER", "MATRIX")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Connect Account") },
+        text = {
+            Column {
+                Text(
+                    "Select platform and enter your account details:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Platform", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    platforms.forEach { platform ->
+                        FilterChip(
+                            selected = selectedPlatform == platform,
+                            onClick = { selectedPlatform = platform },
+                            label = {
+                                Text(
+                                    text = platform.replace("_", " "),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = {
+                        username = it
+                        usernameError = false
+                    },
+                    label = { Text("Username") },
+                    isError = usernameError,
+                    supportingText = if (usernameError) {
+                        { Text("Username cannot be empty") }
+                    } else null,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("Display Name (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Text(
+                        text = "Note: Real platform integration requires API keys and app registration. This creates a local account entry for framework readiness.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    usernameError = username.isBlank()
+                    if (!usernameError) {
+                        onConnect(selectedPlatform, username.trim(), displayName.trim().ifEmpty { username.trim() })
+                    }
+                }
+            ) {
+                Text("Connect")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        modifier = modifier
+    )
 }

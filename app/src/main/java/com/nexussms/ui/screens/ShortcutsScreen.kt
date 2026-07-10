@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -77,6 +78,9 @@ class ShortcutsViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _sortByUsage = MutableStateFlow(false)
+    val sortByUsage: StateFlow<Boolean> = _sortByUsage.asStateFlow()
+
     private val _dialogState = MutableStateFlow<ShortcutDialogState>(ShortcutDialogState.Hidden)
     val dialogState: StateFlow<ShortcutDialogState> = _dialogState.asStateFlow()
 
@@ -84,14 +88,15 @@ class ShortcutsViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     val filteredShortcuts: StateFlow<List<Shortcut>> = combine(
-        _shortcuts, _searchQuery
-    ) { shortcuts, query ->
-        if (query.isBlank()) shortcuts
+        _shortcuts, _searchQuery, _sortByUsage
+    ) { shortcuts, query, sortByUsage ->
+        val filtered = if (query.isBlank()) shortcuts
         else shortcuts.filter {
             it.trigger.contains(query, ignoreCase = true) ||
                     it.expansion.contains(query, ignoreCase = true) ||
                     it.description.contains(query, ignoreCase = true)
         }
+        if (sortByUsage) filtered.sortedByDescending { it.usageCount } else filtered
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -105,6 +110,10 @@ class ShortcutsViewModel @Inject constructor(
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun toggleSortByUsage() {
+        _sortByUsage.value = !_sortByUsage.value
     }
 
     fun showAddDialog() {
@@ -182,6 +191,7 @@ fun ShortcutsScreen(
 ) {
     val filteredShortcuts by viewModel.filteredShortcuts.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortByUsage by viewModel.sortByUsage.collectAsState()
     val dialogState by viewModel.dialogState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -206,15 +216,28 @@ fun ShortcutsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.updateSearchQuery(it) },
-                placeholder = { Text("Search shortcuts...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    placeholder = { Text("Search shortcuts...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { viewModel.toggleSortByUsage() }) {
+                    Icon(
+                        Icons.Default.SortByAlpha,
+                        contentDescription = if (sortByUsage) "Sort alphabetically" else "Sort by usage",
+                        tint = if (sortByUsage) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             if (isLoading) {
                 Spacer(modifier = Modifier.weight(1f))

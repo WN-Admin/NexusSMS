@@ -82,6 +82,9 @@ class ChatViewModel @Inject constructor(
                 messageContent = shortcodeExpansionService.expandMessage(messageContent)
                 messageContent = encryptionManager.generateMessageSignature(messageContent)
 
+                val attachments = _pendingAttachments.value
+                val mediaUrlsStr = attachments.joinToString(",")
+
                 when (_selectedMessageType.value) {
                     "SMS" -> {
                         val message = Message(
@@ -90,10 +93,11 @@ class ChatViewModel @Inject constructor(
                             recipientPhoneNumber = recipientPhone,
                             content = messageContent,
                             timestamp = System.currentTimeMillis(),
-                            type = "TEXT",
+                            type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
                             status = "SENT",
                             isEncrypted = true,
-                            encryptionAlgorithm = "AES256"
+                            encryptionAlgorithm = "AES256",
+                            mediaUrls = mediaUrlsStr
                         )
                         messageRepository.insertMessage(message)
                     }
@@ -101,13 +105,14 @@ class ChatViewModel @Inject constructor(
                         rcsService.sendRcsMessage(
                             recipientPhone,
                             messageContent,
-                            emptyList(),
+                            attachments,
                             conversationId
                         )
                     }
                 }
 
                 _messageText.value = ""
+                _pendingAttachments.value = emptyList()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -152,10 +157,35 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private val _pendingAttachments = MutableStateFlow<List<String>>(emptyList())
+    val pendingAttachments: StateFlow<List<String>> = _pendingAttachments.asStateFlow()
+
     fun attachFile(uri: String) {
         viewModelScope.launch {
-            val current = _messageText.value
-            _messageText.value = if (current.isBlank()) "[Attachment: $uri]" else "$current [Attachment: $uri]"
+            _pendingAttachments.value = _pendingAttachments.value + uri
+        }
+    }
+
+    fun attachImage(uri: String) {
+        viewModelScope.launch {
+            _pendingAttachments.value = _pendingAttachments.value + uri
+        }
+    }
+
+    fun removeAttachment(uri: String) {
+        _pendingAttachments.value = _pendingAttachments.value - uri
+    }
+
+    fun sendMessageWithSticker(conversationId: String, recipientPhone: String, stickerId: String) {
+        viewModelScope.launch {
+            _isSending.value = true
+            try {
+                rcsService.shareSticker(recipientPhone, stickerId, conversationId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isSending.value = false
+            }
         }
     }
 

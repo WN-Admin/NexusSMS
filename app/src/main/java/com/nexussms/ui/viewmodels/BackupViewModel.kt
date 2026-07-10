@@ -2,10 +2,10 @@ package com.nexussms.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexussms.data.database.BackupMetadataDao
+import com.nexussms.data.database.NexusSMSDatabase
 import com.nexussms.data.models.BackupMetadata
+import com.nexussms.features.backup.GoogleDriveBackupService
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +16,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BackupViewModel @Inject constructor(
-    private val backupMetadataDao: BackupMetadataDao
+    private val backupMetadataDao: com.nexussms.data.database.BackupMetadataDao,
+    private val googleDriveBackupService: GoogleDriveBackupService
 ) : ViewModel() {
 
     private val _backups = MutableStateFlow<List<BackupMetadata>>(emptyList())
@@ -28,6 +29,9 @@ class BackupViewModel @Inject constructor(
     private val _lastBackup = MutableStateFlow<BackupMetadata?>(null)
     val lastBackup: StateFlow<BackupMetadata?> = _lastBackup.asStateFlow()
 
+    private val _backupError = MutableStateFlow<String?>(null)
+    val backupError: StateFlow<String?> = _backupError.asStateFlow()
+
     init {
         backupMetadataDao.getAllBackups()
             .onEach { list ->
@@ -37,48 +41,58 @@ class BackupViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun createManualBackup(dataIncluded: List<String> = listOf("shortcuts", "signatures", "themes", "settings", "messages")) {
+    fun createManualBackup(dataIncluded: List<String> = listOf("shortcuts", "signatures", "themes")) {
         viewModelScope.launch {
             _isBackingUp.value = true
-            val backup = BackupMetadata(
-                backupType = "MANUAL",
-                dataIncluded = dataIncluded.joinToString(",", "[", "]") { "\"$it\"" },
-                status = "IN_PROGRESS",
-                isAutomatic = false
-            )
-            backupMetadataDao.insertBackup(backup)
-            delay(2000)
-            backupMetadataDao.updateBackup(backup.copy(status = "COMPLETED", size = 0L))
-            _isBackingUp.value = false
+            _backupError.value = null
+            try {
+                val result = googleDriveBackupService.createBackup(
+                    dataTypes = dataIncluded,
+                    encrypt = true,
+                    isAutomatic = false
+                )
+                result.onFailure { e ->
+                    _backupError.value = e.message ?: "Backup failed"
+                }
+            } catch (e: Exception) {
+                _backupError.value = e.message ?: "Backup failed"
+            } finally {
+                _isBackingUp.value = false
+            }
         }
     }
 
     fun restoreBackup(backup: BackupMetadata) {
         viewModelScope.launch {
-            backupMetadataDao.updateBackup(backup.copy(status = "IN_PROGRESS"))
-            delay(2000)
-            backupMetadataDao.updateBackup(backup.copy(status = "COMPLETED"))
+            _isBackingUp.value = true
+            _backupError.value = null
+            try {
+                val result = googleDriveBackupService.restoreBackup(backup.id)
+                result.onFailure { e ->
+                    _backupError.value = e.message ?: "Restore failed"
+                }
+            } catch (e: Exception) {
+                _backupError.value = e.message ?: "Restore failed"
+            } finally {
+                _isBackingUp.value = false
+            }
         }
     }
 
     fun scheduleAutoBackup(frequency: String = "DAILY") {
         viewModelScope.launch {
-            val nextBackup = System.currentTimeMillis() + when (frequency) {
-                "HOURLY" -> 3_600_000L
-                "DAILY" -> 86_400_000L
-                "WEEKLY" -> 604_800_000L
-                "MONTHLY" -> 2_592_000_000L
-                else -> 86_400_000L
-            }
-            val backup = BackupMetadata(
-                backupType = "GOOGLE_DRIVE",
-                status = "PENDING",
-                isAutomatic = true,
-                backupFrequency = frequency,
-                nextScheduledBackup = nextBackup
-            )
-            backupMetadataDao.insertBackup(backup)
+            googleDriveBackupService.scheduleAutoBackup(frequency)
         }
+    }
+
+    fun cancelAutoBackup() {
+        viewModelScope.launch {
+            googleDriveBackupService.cancelAutoBackup()
+        }
+    }
+
+    fun clearError() {
+        _backupError.value = null
     }
 
     fun getHistory() {
