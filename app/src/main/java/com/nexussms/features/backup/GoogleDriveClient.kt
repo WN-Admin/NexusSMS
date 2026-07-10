@@ -90,9 +90,9 @@ class GoogleDriveClient @Inject constructor(
         }
     }
 
-    suspend fun listBackupFiles(): List<Any> = withContext(Dispatchers.IO) {
+    suspend fun listBackupFiles(): List<File> = withContext(Dispatchers.IO) {
         try {
-            val service = driveService ?: return@withContext emptyList<Any>()
+            val service = driveService ?: return@withContext emptyList()
             val folderId = getOrCreateBackupFolder(service)
 
             val result = service.files().list()
@@ -103,7 +103,7 @@ class GoogleDriveClient @Inject constructor(
             result.files ?: emptyList()
         } catch (e: Exception) {
             Timber.e(TAG, "List failed: ${e.message}")
-            emptyList<Any>()
+            emptyList()
         }
     }
 

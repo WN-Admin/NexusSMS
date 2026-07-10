@@ -106,4 +106,39 @@ class EncryptionManager @Inject constructor(
             message
         }
     }
+
+    fun encryptWithKey(plaintext: String, key: SecretKey): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        val iv = cipher.iv
+        val encryptedBytes = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        val combined = iv + encryptedBytes
+        return Base64.encodeToString(combined, Base64.DEFAULT)
+    }
+
+    fun decryptWithKey(encryptedText: String, key: SecretKey): String {
+        val combined = Base64.decode(encryptedText, Base64.DEFAULT)
+        val iv = combined.sliceArray(0 until 12)
+        val encryptedBytes = combined.sliceArray(12 until combined.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = GCMParameterSpec(128, iv)
+        cipher.init(Cipher.DECRYPT_MODE, key, spec)
+        return String(cipher.doFinal(encryptedBytes), Charsets.UTF_8)
+    }
+
+    fun shouldEncryptForContact(phoneNumber: String): Boolean {
+        val encryptedContacts = retrieveSecureData("encrypted_contacts")
+        return encryptedContacts?.contains(phoneNumber) == true
+    }
+
+    fun setEncryptForContact(phoneNumber: String, encrypt: Boolean) {
+        val current = retrieveSecureData("encrypted_contacts") ?: ""
+        val contacts = if (current.isBlank()) emptySet() else current.split(",").toSet()
+        val updated = if (encrypt) contacts + phoneNumber else contacts - phoneNumber
+        storeSecureData("encrypted_contacts", updated.joinToString(","))
+    }
+
+    fun isEncryptedMessage(message: String): Boolean {
+        return message.startsWith("ENC:")
+    }
 }

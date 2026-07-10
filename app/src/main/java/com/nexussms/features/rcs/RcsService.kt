@@ -89,8 +89,24 @@ class RcsService @Inject constructor(
         messageRepository.insertMessage(message)
     }
 
+    private val capabilityCache = mutableMapOf<String, RcsCapability>()
+
     suspend fun checkRcsCapability(phoneNumber: String): RcsCapability {
-        val isCapable = phoneNumber == "self" || phoneNumber.startsWith("+1555")
+        capabilityCache[phoneNumber]?.let { return it }
+
+        val isCapable = try {
+            val subscriptionManager = context.getSystemService(android.telephony.SubscriptionManager::class.java)
+            val activeSubs = subscriptionManager.activeSubscriptionInfoList
+            val hasRcs = activeSubs?.any { sub ->
+                val carrierConfig = context.getSystemService(android.telephony.CarrierConfigManager::class.java)
+                    ?.getConfigForSubId(sub.subscriptionId)
+                carrierConfig?.getBoolean("KEY RCS PROVISIONING STATUS BOOL") == true
+            } ?: false
+            hasRcs || phoneNumber == "self"
+        } catch (e: Exception) {
+            phoneNumber == "self" || phoneNumber.startsWith("+1555")
+        }
+
         return RcsCapability(
             phoneNumber = phoneNumber,
             supportsRcs = isCapable,
@@ -99,7 +115,7 @@ class RcsService @Inject constructor(
             supportsReactions = isCapable,
             supportsStickers = isCapable,
             supportsGiphy = isCapable
-        )
+        ).also { capabilityCache[phoneNumber] = it }
     }
 
     fun getRcsMessages(conversationId: String): Flow<List<Message>> {

@@ -1,281 +1,156 @@
-# NexusSMS - Advanced Android Messaging App
+# NexusSMS
 
-An ultra-modern, feature-rich Android SMS and messaging application with support for RCS, social media integration, advanced security, unlimited themes, and much more.
+A feature-rich Android SMS/MMS messaging application with RCS support, end-to-end encryption, social media integration, and a fully customizable UI built with Jetpack Compose and Material Design 3.
 
 ## Features
 
-### 1. **Unlimited Shortcode Messaging Shortcuts**
-- Create custom shortcuts using `!` or `@` prefixes
-- Example: `!ato` → "At The Office"
-- Automatic expansion during message composition
-- Usage tracking and analytics
-- Per-contact shortcut management
+### Messaging
+- **SMS/MMS** - Send and receive text and multimedia messages
+- **RCS (Rich Communication Services)** - Typing indicators, read receipts, reactions, and sticker sharing with carrier-capable contacts
+- **Message Scheduling** - Schedule messages with date/time picker, supports ONCE/DAILY/WEEKLY/MONTHLY recurrence
+- **Message Encryption** - AES-256-GCM encryption for sensitive messages with per-contact encryption toggles
 
-### 2. **RCS (Rich Communication Services) Support**
-- Similar to Google Messages
-- Proprietary protocol for enhanced messaging
-- Typing indicators
-- Read receipts
-- Reaction support
-- File sharing capabilities
+### Shortcodes
+- Create custom text expansion shortcuts with `!` or `@` triggers (e.g., `!brb` expands to "Be right back")
+- Sort shortcuts by usage count to surface most-used expansions
+- Auto-complete suggestions while typing in the chat input
+- Per-contact shortcut overrides and category organization
 
-### 3. **Message Scheduling & Signatures**
-- Schedule messages for later delivery
-- Create multiple message signatures
-- Default signature selection
-- Rich text support
+### Signatures
+- Multiple message signatures with default selection
+- Template library: Professional, Casual, Auto-Response, Work Hours, Out of Office
+- Rich text format support (TEXT/HTML)
 
-### 4. **Enhanced Security Features**
-- AES-256 encryption for all messages
-- Cross-device communication (phones, tablets, computers)
-- Encrypted credential storage
-- End-to-end encryption similar to Signal and Pulse SMS
-- Secure backup and recovery
-
-### 5. **Completely Ad-Free**
-- No advertisements
-- No tracking
-- No premium features locked behind paywalls
-
-### 6. **Unlimited Theme Support**
-- 6+ built-in professional themes
-- Custom theme creation
+### Themes
+- 8 built-in professional themes plus unlimited custom themes
 - Per-conversation theme customization
-- Color picker with hex code support
-- Dark and light mode themes
-
-### 7. **Native Light and Dark Mode**
-- Material Design 3 support
-- Dynamic color support (Android 12+)
-- Automatic theme switching based on system settings
-- Manual theme override
-
-### 8. **Rich Media & Sticker Support**
-- Integrated emoji picker
-- Giphy GIF support
-- Sticker library
-- Image and file sharing
-- Similar to Microsoft Teams experience
-
-### 9. **Social Media Platform Integration**
-Supported platforms:
-- **Facebook Messenger**
-- **Discord**
-- **Telegram**
-- **Viber**
-- **Matrix**
-
-Unified inbox for all platforms with seamless switching.
-
-## Project Structure
-
-```
-NexusSMS/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/nexussms/
-│   │   │   │   ├── MainActivity.kt
-│   │   │   │   ├── NexusSMSApplication.kt
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── models/
-│   │   │   │   │   ├── database/
-│   │   │   │   │   ├── repository/
-│   │   │   │   │   └── converters/
-│   │   │   │   ├── services/
-│   │   │   │   │   ├── MessageService.kt
-│   │   │   │   │   └── ScheduledMessageWorker.kt
-│   │   │   │   ├── receivers/
-│   │   │   │   │   └── SmsReceiver.kt
-│   │   │   │   ├── features/
-│   │   │   │   │   ├── shortcodes/
-│   │   │   │   │   ├── rcs/
-│   │   │   │   │   ├── social/
-│   │   │   │   │   └── theme/
-│   │   │   │   ├── security/
-│   │   │   │   │   └── EncryptionManager.kt
-│   │   │   │   ├── di/
-│   │   │   │   │   └── AppModule.kt
-│   │   │   │   └── ui/
-│   │   │   │       ├── screens/
-│   │   │   │       ├── viewmodels/
-│   │   │   │       └── theme/
-│   │   │   └── AndroidManifest.xml
-│   ├── build.gradle.kts
-│   └── proguard-rules.pro
-├── build.gradle.kts
-├── settings.gradle.kts
-└── gradle.properties
-```
-
-## Technology Stack
-
-### Architecture
-- **MVVM** (Model-View-ViewModel) with Clean Architecture principles
-- **Repository Pattern** for data access
-- **Dependency Injection** using Hilt
-
-### UI Framework
-- **Jetpack Compose** for modern declarative UI
-- **Material Design 3** components
-
-### Database
-- **Room** for local database management
-- Type-safe database queries
-
-### Networking
-- **Retrofit** for API calls
-- **OkHttp** for HTTP client
-- **Gson** for JSON serialization
+- Color picker with hex code input
+- Dark and light mode with system-aware switching
 
 ### Security
-- **AndroidX Security** crypto
-- **AES-256** encryption
-- **Bouncy Castle** for cryptography
+- **App Lock** - PIN, pattern, or password protection with biometric fallback
+- **Session Management** - Configurable timeout with auto-lock
+- **Secure Storage** - EncryptedSharedPreferences with Android Keystore-backed master key
+- **Screenshot Prevention** - Optional FLAG_SECURE enforcement
+- **Content Privacy** - Hide message content in recent apps
 
-### Background Tasks
-- **WorkManager** for scheduled messages
-- Reliable task scheduling
+### Social Media Integration
+Connect accounts from:
+- Facebook Messenger
+- Discord
+- Telegram
+- Viber
+- Matrix
 
-### Other Libraries
-- **Kotlin Coroutines** for async operations
-- **Jetpack Navigation** (for future navigation impl.)
-- **Coil** for image loading
+Unified account management with connect/disconnect flow and sync status.
 
-## Installation & Setup
+### Backup & Restore
+- **Google Drive Backup** - Real Google Drive API v3 integration with OAuth2 authentication
+- Encrypted backup upload with AES-256
+- Automatic backup scheduling (hourly/daily/weekly/monthly)
+- One-tap restore from backup history
 
-### Prerequisites
-- Android Studio (latest version)
-- Android SDK 34
-- Kotlin 1.9.10 or later
-- Gradle 8.1.2 or later
+### Chat Features
+- Emoji picker with 8 categories and search
+- Sticker picker with 6 categories
+- Image and file attachments
+- Location sharing via Google Maps links
+- Message reactions (long-press to react)
+- Shortcut auto-complete bar
 
-### Steps
+## Architecture
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/NexusSMS.git
-   cd NexusSMS
-   ```
+```
+com.nexussms/
+├── data/
+│   ├── models/          # 10 Room entities
+│   ├── database/        # NexusSMSDatabase, DAOs, migrations
+│   ├── repository/      # 8 repository classes
+│   └── converters/      # Date, JSON type converters
+├── features/
+│   ├── backup/          # Google Drive backup/restore
+│   ├── rcs/             # RCS messaging service
+│   ├── social/          # Social media integration
+│   ├── shortcodes/      # Text expansion service
+│   ├── security/        # App lock, biometrics, session
+│   └── theme/           # Theme manager
+├── security/            # AES-256-GCM encryption
+├── services/            # MessageService, ScheduledMessageWorker
+├── receivers/           # SmsReceiver
+├── di/                  # Hilt dependency injection
+├── ui/
+│   ├── screens/         # 12 composable screens
+│   ├── components/      # Reusable UI components
+│   ├── viewmodels/      # 6 ViewModels
+│   ├── state/           # UI state classes
+│   └── theme/           # Material 3 theme
+└── utils/               # Validators
+```
 
-2. **Open in Android Studio**
-   - File → Open → Select NexusSMS folder
+## Tech Stack
 
-3. **Sync Gradle**
-   - Android Studio will automatically sync dependencies
+| Layer | Technology |
+|---|---|
+| UI | Jetpack Compose, Material Design 3 |
+| Architecture | MVVM, Repository Pattern |
+| Database | Room (10 entities, 10 DAOs) |
+| DI | Hilt |
+| Async | Kotlin Coroutines + Flow |
+| Networking | Retrofit, OkHttp, Google Drive API v3 |
+| Security | AES-256-GCM, EncryptedSharedPreferences, BiometricPrompt |
+| Background | WorkManager |
+| Image Loading | Coil |
+| Logging | Timber |
 
-4. **Build the project**
-   ```bash
-   ./gradlew build
-   ```
+## Build
 
-5. **Run on emulator or device**
-   ```bash
-   ./gradlew installDebug
-   ```
+### Requirements
+- Android Studio Hedgehog or later
+- JDK 17
+- Android SDK 35
+- Min SDK: 24 (Android 7.0)
 
-## Key Components
-
-### Data Models
-- `Message` - SMS/RCS message entity
-- `Conversation` - Conversation thread
-- `Shortcut` - Shortcode expansion
-- `ScheduledMessage` - Scheduled message
-- `UserSignature` - Message signature
-- `Theme` - Custom theme
-- `SocialAccount` - Connected social media account
-
-### Repositories
-- `MessageRepository` - Message data access
-- `ConversationRepository` - Conversation management
-- `ShortcutRepository` - Shortcode management
-- `ScheduledMessageRepository` - Scheduled message management
-- `ThemeRepository` - Theme management
-- `SocialAccountRepository` - Social account management
-
-### Services
-- `MessageService` - Send and manage messages
-- `RcsService` - RCS communication
-- `ShortcodeExpansionService` - Shortcode expansion
-- `SocialMediaIntegrationService` - Social platform integration
-- `EncryptionManager` - Encryption and security
-- `ThemeManager` - Theme management
-
-### ViewModels
-- `ConversationListViewModel` - Manage conversation list
-- `ChatViewModel` - Manage individual chat
-- `SettingsViewModel` - Manage settings and preferences
-
-## API Integration Points
-
-### SMS/RCS APIs
-- Android Telephony Manager
-- Android SMS Manager
-- Custom RCS Protocol Handler
-
-### Social Media APIs
-- Facebook Graph API
-- Discord Bot API
-- Telegram Bot API
-- Viber Bot API
-- Matrix Client-Server API
-
-## Security Features
-
-1. **End-to-End Encryption**
-   - AES-256 encryption for messages
-   - Secure key management
-
-2. **Credential Storage**
-   - EncryptedSharedPreferences for sensitive data
-   - Master Key encryption
-
-3. **Multi-Device Support**
-   - Secure sync across devices
-   - Cross-platform communication
-
-## Building Release APK
-
+### Build Debug APK
 ```bash
+./gradlew assembleDebug
+```
+
+### Build Release APK
+Set environment variables for signing:
+```bash
+export KEYSTORE_PASSWORD="your-password"
+export KEY_ALIAS="your-alias"
+export KEY_PASSWORD="your-key-password"
 ./gradlew assembleRelease
 ```
 
-The signed APK will be available in `app/build/outputs/apk/release/`
+### Run Tests
+```bash
+./gradlew testDebugUnitTest
+./gradlew connectedAndroidTest
+```
 
-## Contributing
+## CI/CD
 
-Contributions are welcome! Please follow these guidelines:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+GitHub Actions workflow (`.github/workflows/android.yml`) runs on every push/PR:
+1. **Lint** - Android lint checks
+2. **Unit Tests** - JUnit + MockK test suite
+3. **Debug Build** - Assemble debug APK
+4. **Release Build** - Assemble signed release APK on tag push
+
+## Permissions
+
+| Permission | Purpose |
+|---|---|
+| `READ_SMS`, `SEND_SMS`, `RECEIVE_SMS` | Core SMS functionality |
+| `READ_CONTACTS` | Contact name resolution |
+| `READ_PHONE_STATE` | Device identification |
+| `INTERNET`, `ACCESS_NETWORK_STATE` | Network communication |
+| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | Location sharing |
+| `CAMERA`, `READ_MEDIA_IMAGES` | Media attachments |
+| `POST_NOTIFICATIONS` | Message notifications |
+| `SCHEDULE_EXACT_ALARM` | Scheduled messages |
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## Support
-
-For issues, questions, or feature requests, please open an issue on GitHub.
-
-## Future Enhancements
-
-- [ ] Call integration
-- [ ] Video call support
-- [ ] Screen share capability
-- [ ] Document scanning
-- [ ] Advanced filtering and search
-- [ ] Message backup and restore
-- [ ] Cloud sync
-- [ ] Accessibility improvements
-- [ ] Translation support
-
-## Changelog
-
-### Version 1.0.0
-- Initial release with core features
-- SMS and RCS support
-- Theme customization
-- Social media integration
-- Message scheduling
-- End-to-end encryption
+MIT License - see [LICENSE](LICENSE) for details.

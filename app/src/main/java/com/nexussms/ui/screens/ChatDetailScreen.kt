@@ -1,6 +1,8 @@
 package com.nexussms.ui.screens
 
 import android.Manifest
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +72,8 @@ import com.nexussms.ui.components.EmojiPicker
 import com.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexussms.ui.viewmodels.ChatViewModel
 import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +91,7 @@ fun ChatDetailScreen(
 
     val context = LocalContext.current
     var showEmojiPicker by remember { mutableStateOf(false) }
+    var showStickerPicker by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var reactingMessageId by remember { mutableStateOf<String?>(null) }
     var showLocationPermissionDenied by remember { mutableStateOf(false) }
@@ -93,7 +99,10 @@ fun ChatDetailScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        selectedImageUri = uri
+        uri?.let {
+            selectedImageUri = it
+            viewModel.attachImage(it.toString())
+        }
     }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -140,6 +149,18 @@ fun ChatDetailScreen(
                 )
             },
             confirmButton = {}
+        )
+    }
+
+    if (showStickerPicker) {
+        StickerPicker(
+            onStickerSelected = { stickerId ->
+                conversation?.let { conv ->
+                    viewModel.sendMessageWithSticker(conversationId, conv.participantPhoneNumbers, stickerId)
+                }
+                showStickerPicker = false
+            },
+            onDismiss = { showStickerPicker = false }
         )
     }
 
@@ -230,30 +251,71 @@ fun ChatDetailScreen(
                     IconButton(onClick = { showEmojiPicker = true }) {
                         Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji")
                     }
+                    IconButton(onClick = { showStickerPicker = true }) {
+                        Icon(Icons.Default.StickyNote2, contentDescription = "Stickers")
+                    }
 
                     var showScheduleDialog by remember { mutableStateOf(false) }
 
                     if (showScheduleDialog) {
+                        val calendar = remember { Calendar.getInstance() }
                         var scheduleTime by remember { mutableStateOf(System.currentTimeMillis() + 3600000L) }
-                        androidx.compose.material3.AlertDialog(
+                        val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
+
+                        AlertDialog(
                             onDismissRequest = { showScheduleDialog = false },
                             title = { Text("Schedule Message") },
                             text = {
                                 Column {
                                     Text("Send this message later.")
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    androidx.compose.material3.OutlinedTextField(
-                                        value = scheduleTime.toString(),
-                                        onValueChange = {
-                                            it.toLongOrNull()?.let { v -> scheduleTime = v }
-                                        },
-                                        label = { Text("Time (epoch ms)") },
-                                        modifier = Modifier.fillMaxWidth()
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "Scheduled for: ${dateFormat.format(Date(scheduleTime))}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = {
+                                                DatePickerDialog(
+                                                    context,
+                                                    { _, year, month, day ->
+                                                        calendar.set(year, month, day)
+                                                        scheduleTime = calendar.timeInMillis
+                                                    },
+                                                    calendar.get(Calendar.YEAR),
+                                                    calendar.get(Calendar.MONTH),
+                                                    calendar.get(Calendar.DAY_OF_MONTH)
+                                                ).show()
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Date", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Button(
+                                            onClick = {
+                                                TimePickerDialog(
+                                                    context,
+                                                    { _, hour, minute ->
+                                                        calendar.set(Calendar.HOUR_OF_DAY, hour)
+                                                        calendar.set(Calendar.MINUTE, minute)
+                                                        scheduleTime = calendar.timeInMillis
+                                                    },
+                                                    calendar.get(Calendar.HOUR_OF_DAY),
+                                                    calendar.get(Calendar.MINUTE),
+                                                    true
+                                                ).show()
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Time", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
                                 }
                             },
                             confirmButton = {
-                                androidx.compose.material3.TextButton(
+                                TextButton(
                                     onClick = {
                                         viewModel.scheduleMessage(
                                             conversationId = conversationId,
@@ -265,7 +327,7 @@ fun ChatDetailScreen(
                                 ) { Text("Schedule") }
                             },
                             dismissButton = {
-                                androidx.compose.material3.TextButton(
+                                TextButton(
                                     onClick = { showScheduleDialog = false }
                                 ) { Text("Cancel") }
                             }
@@ -521,4 +583,60 @@ fun MessageTypeButton(label: String, isSelected: Boolean, onClick: () -> Unit) {
             fontWeight = FontWeight.Medium
         )
     }
+}
+
+@Composable
+private fun StickerPicker(
+    onStickerSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val stickerCategories = listOf(
+        "Smileys" to listOf("\uD83D\uDE00", "\uD83D\uDE02", "\uD83D\uDE0D", "\uD83D\uDE18", "\uD83D\uDE0E", "\uD83E\uDD29"),
+        "Gestures" to listOf("\uD83D\uDC4D", "\uD83D\uDC4E", "\uD83D\uDC4B", "\uD83D\uDC4F", "\uD83D\uDE4F", "\uD83D\uDC4C"),
+        "Hearts" to listOf("\u2764\uFE0F", "\uD83D\uDC94", "\uD83D\uDC95", "\uD83D\uDC96", "\uD83D\uDC97", "\uD83D\uDC99"),
+        "Animals" to listOf("\uD83D\uDC36", "\uD83D\uDC31", "\uD83D\uDC3B", "\uD83D\uDC3C", "\uD83E\uDD8A", "\uD83D\uDC30"),
+        "Food" to listOf("\uD83C\uDF55", "\uD83C\uDF54", "\uD83C\uDF69", "\uD83C\uDF70", "\uD83C\uDF53", "\uD83E\uDD66"),
+        "Objects" to listOf("\u2B50", "\uD83D\uDCA1", "\uD83C\uDF08", "\uD83C\uDF3B", "\uD83D\uDD25", "\uD83C\uDF1F")
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Stickers") },
+        text = {
+            LazyColumn {
+                stickerCategories.forEach { (category, stickers) ->
+                    item {
+                        Text(
+                            text = category,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            stickers.forEach { sticker ->
+                                Text(
+                                    text = sticker,
+                                    modifier = Modifier
+                                        .clickable { onStickerSelected(sticker) }
+                                        .padding(8.dp),
+                                    style = MaterialTheme.typography.headlineMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
