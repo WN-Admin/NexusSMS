@@ -10,3 +10,4 @@ local.properties
 *.log
 .DS_Store
 opencode.json
+app/release.keystore
