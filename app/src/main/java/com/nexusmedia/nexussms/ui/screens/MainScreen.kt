@@ -112,7 +112,13 @@ fun MainScreen() {
                 ScheduledMessagesScreen()
             }
             composable("social") {
-                SocialAccountsScreen()
+                SocialAccountsScreen(navController = navController)
+            }
+            composable("privacy_policy") {
+                PrivacyPolicyScreen(navController = navController)
+            }
+            composable("terms_of_service") {
+                TermsOfServiceScreen(navController = navController)
             }
             composable("backup") {
                 BackupScreen()

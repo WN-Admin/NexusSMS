@@ -47,6 +47,7 @@ import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Theme
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.theme.ThemeManager
+import com.nexusmedia.nexussms.features.theme.ThemePreference
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,7 +64,8 @@ sealed class ThemeDialogState {
 
 @HiltViewModel
 class ThemesViewModel @Inject constructor(
-    private val themeRepository: ThemeRepository
+    private val themeRepository: ThemeRepository,
+    private val themePreference: ThemePreference
 ) : ViewModel() {
 
     private val _allThemes = MutableStateFlow<List<Theme>>(emptyList())
@@ -85,6 +87,8 @@ class ThemesViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     init {
+        _currentThemeId.value = themePreference.currentThemeId.value
+
         themeRepository.getAllThemes()
             .onEach { _allThemes.value = it }
             .launchIn(viewModelScope)
@@ -102,6 +106,7 @@ class ThemesViewModel @Inject constructor(
     }
 
     fun applyTheme(theme: Theme) {
+        themePreference.setTheme(theme)
         _currentThemeId.value = theme.id
     }
 

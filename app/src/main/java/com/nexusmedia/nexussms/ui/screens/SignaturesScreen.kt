@@ -1,5 +1,6 @@
 package com.nexusmedia.nexussms.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,7 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -193,17 +194,19 @@ fun SignaturesScreen(
             )
         },
         floatingActionButton = {
-            Column {
-                FloatingActionButton(
-                    onClick = { viewModel.showTemplatesDialog() },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            Column(horizontalAlignment = Alignment.End) {
+                ExtendedFloatingActionButton(
+                    onClick = { viewModel.showAddDialog() },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New Signature") },
                     modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Templates")
-                }
-                FloatingActionButton(onClick = { viewModel.showAddDialog() }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Signature")
-                }
+                )
+                ExtendedFloatingActionButton(
+                    onClick = { viewModel.showTemplatesDialog() },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Browse Templates") },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                )
             }
         }
     ) { paddingValues ->
@@ -215,17 +218,44 @@ fun SignaturesScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else if (signatures.isEmpty()) {
-            Text(
-                text = "No signatures yet",
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "No signatures yet",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Tap \"New Signature\" to create one, or \"Browse Templates\" to get started",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
+                item {
+                    Text(
+                        text = "Your Signatures",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(16.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 items(signatures, key = { it.id }) { signature ->
                     SignatureItem(
                         signature = signature,

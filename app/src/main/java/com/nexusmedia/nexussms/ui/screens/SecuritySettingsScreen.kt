@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -19,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -34,8 +36,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nexusmedia.nexussms.ui.viewmodels.SecuritySettingsViewModel
@@ -47,6 +53,13 @@ fun SecuritySettingsScreen(
     viewModel: SecuritySettingsViewModel = hiltViewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
+    val activity = LocalContext.current as? FragmentActivity
+
+    var showPinDialog by remember { mutableStateOf(false) }
+    var pinStep by remember { mutableStateOf(0) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinConfirmInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -81,7 +94,17 @@ fun SecuritySettingsScreen(
                 title = "App Lock",
                 subtitle = "Require PIN/pattern to open app",
                 checked = settings?.appLockEnabled == true,
-                onCheckedChange = { viewModel.toggleAppLock(it) }
+                onCheckedChange = { enabled ->
+                    if (enabled) {
+                        showPinDialog = true
+                        pinStep = 0
+                        pinInput = ""
+                        pinConfirmInput = ""
+                        pinError = ""
+                    } else {
+                        viewModel.toggleAppLock(false)
+                    }
+                }
             )
             if (settings?.appLockEnabled == true) {
                 LockTypeSelector(
@@ -99,27 +122,57 @@ fun SecuritySettingsScreen(
             SettingToggle(
                 title = "Require on Startup",
                 checked = settings?.requireBiometricOnStartup == true,
-                onCheckedChange = { viewModel.toggleBiometricOnStartup(it) }
+                onCheckedChange = { enabled ->
+                    if (activity != null) {
+                        viewModel.onBiometricSettingToggle(activity, enabled) {
+                            viewModel.toggleBiometricOnStartup(enabled)
+                        }
+                    }
+                }
             )
             SettingToggle(
                 title = "Require to Read Messages",
                 checked = settings?.requireBiometricForRead == true,
-                onCheckedChange = { viewModel.toggleBiometricForRead(it) }
+                onCheckedChange = { enabled ->
+                    if (activity != null) {
+                        viewModel.onBiometricSettingToggle(activity, enabled) {
+                            viewModel.toggleBiometricForRead(enabled)
+                        }
+                    }
+                }
             )
             SettingToggle(
                 title = "Require to Send Messages",
                 checked = settings?.requireBiometricForSend == true,
-                onCheckedChange = { viewModel.toggleBiometricForSend(it) }
+                onCheckedChange = { enabled ->
+                    if (activity != null) {
+                        viewModel.onBiometricSettingToggle(activity, enabled) {
+                            viewModel.toggleBiometricForSend(enabled)
+                        }
+                    }
+                }
             )
             SettingToggle(
                 title = "Require to Delete Messages",
                 checked = settings?.requireBiometricForDelete == true,
-                onCheckedChange = { viewModel.toggleBiometricForDelete(it) }
+                onCheckedChange = { enabled ->
+                    if (activity != null) {
+                        viewModel.onBiometricSettingToggle(activity, enabled) {
+                            viewModel.toggleBiometricForDelete(enabled)
+                        }
+                    }
+                }
             )
             SettingToggle(
                 title = "Require to Forward Messages",
                 checked = settings?.requireBiometricForForward == true,
-                onCheckedChange = { viewModel.toggleBiometricForForward(it) }
+                onCheckedChange = { enabled ->
+                    if (activity != null) {
+                        viewModel.onBiometricSettingToggle(activity, enabled) {
+                            viewModel.toggleBiometricForForward(enabled)
+                        }
+                    }
+                }
             )
 
             HorizontalDivider()
@@ -149,6 +202,64 @@ fun SecuritySettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (showPinDialog) {
+        AlertDialog(
+            onDismissRequest = { showPinDialog = false },
+            title = { Text(if (pinStep == 0) "Set App Lock PIN" else "Confirm PIN") },
+            text = {
+                Column {
+                    Text(
+                        text = if (pinStep == 0) "Enter a PIN to lock the app" else "Re-enter your PIN to confirm",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = if (pinStep == 0) pinInput else pinConfirmInput,
+                        onValueChange = {
+                            if (pinStep == 0) pinInput = it else pinConfirmInput = it
+                            pinError = ""
+                        },
+                        label = { Text("PIN") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = pinError.isNotEmpty(),
+                        supportingText = if (pinError.isNotEmpty()) {
+                            { Text(pinError) }
+                        } else null,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (pinStep == 0) {
+                        if (pinInput.length >= 4) {
+                            pinStep = 1
+                        } else {
+                            pinError = "PIN must be at least 4 digits"
+                        }
+                    } else {
+                        if (pinInput == pinConfirmInput) {
+                            viewModel.setupAppLock(pinInput)
+                            showPinDialog = false
+                        } else {
+                            pinError = "PINs don\u2019t match"
+                        }
+                    }
+                }) {
+                    Text(if (pinStep == 0) "Next" else "Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPinDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

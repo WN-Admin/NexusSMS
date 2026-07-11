@@ -1,6 +1,7 @@
 package com.nexusmedia.nexussms.features.rcs
 
 import android.content.Context
+import android.os.Build
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.models.Reaction
 import com.nexusmedia.nexussms.data.repository.MessageRepository
@@ -116,6 +117,20 @@ class RcsService @Inject constructor(
             supportsStickers = isCapable,
             supportsGiphy = isCapable
         ).also { capabilityCache[phoneNumber] = it }
+    }
+
+    fun isRcsAvailable(): Boolean {
+        return try {
+            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val config = telephonyManager.getCarrierConfig()
+                config?.getBoolean("KEY RCS FEATURE ENABLED BOOLEAN") ?: false
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     fun getRcsMessages(conversationId: String): Flow<List<Message>> {

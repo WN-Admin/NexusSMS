@@ -202,8 +202,8 @@ fun SettingsScreen(
                 SettingsSection(title = "About")
             }
             item { SettingsItem(title = "Version", subtitle = "1.0.3") }
-            item { SettingsItem(title = "Privacy Policy", subtitle = "") }
-            item { SettingsItem(title = "Terms of Service", subtitle = "") }
+            item { SettingsItem(title = "Privacy Policy", subtitle = "") { navController.navigate("privacy_policy") } }
+            item { SettingsItem(title = "Terms of Service", subtitle = "") { navController.navigate("terms_of_service") } }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }

@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.util.Date
 import javax.inject.Inject
 
@@ -186,12 +187,40 @@ class ChatViewModel @Inject constructor(
                         }
                     }
                     "RCS" -> {
-                        rcsService.sendRcsMessage(
-                            recipientPhone,
-                            messageContent,
-                            attachments,
-                            conversationId
-                        )
+                        if (rcsService.isRcsAvailable()) {
+                            rcsService.sendRcsMessage(
+                                recipientPhone,
+                                messageContent,
+                                attachments,
+                                conversationId
+                            )
+                        } else {
+                            Timber.w("RCS requested but not available, falling back to SMS")
+                            val fallbackMessage = Message(
+                                conversationId = conversationId,
+                                senderPhoneNumber = "self",
+                                recipientPhoneNumber = recipientPhone,
+                                content = messageContent,
+                                timestamp = System.currentTimeMillis(),
+                                type = "TEXT",
+                                status = "SENT",
+                                isEncrypted = false,
+                                mediaUrls = mediaUrlsStr
+                            )
+                            messageRepository.insertMessage(fallbackMessage)
+                            try {
+                                val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    context.getSystemService(SmsManager::class.java)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    SmsManager.getDefault()
+                                }
+                                val parts = smsManager.divideMessage(messageContent)
+                                smsManager.sendMultipartTextMessage(recipientPhone, null, parts, null, null)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
                     }
                 }
 
