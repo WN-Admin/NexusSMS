@@ -1,9 +1,11 @@
 package com.nexusmedia.nexussms.ui.viewmodels
 
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.database.AppSecuritySettingsDao
 import com.nexusmedia.nexussms.data.models.AppSecuritySettings
+import com.nexusmedia.nexussms.features.security.BiometricAuthManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +17,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SecuritySettingsViewModel @Inject constructor(
-    private val appSecuritySettingsDao: AppSecuritySettingsDao
+    private val appSecuritySettingsDao: AppSecuritySettingsDao,
+    private val biometricAuthManager: BiometricAuthManager
 ) : ViewModel() {
 
     private val _settings = MutableStateFlow<AppSecuritySettings?>(null)
@@ -54,6 +57,30 @@ class SecuritySettingsViewModel @Inject constructor(
 
     fun setLockValue(value: String) {
         update { copy(appLockValue = value) }
+    }
+
+    fun setupAppLock(pin: String) {
+        viewModelScope.launch {
+            biometricAuthManager.setupAppLock("PIN", pin)
+        }
+    }
+
+    fun onBiometricSettingToggle(
+        activity: FragmentActivity,
+        enabled: Boolean,
+        onVerified: () -> Unit
+    ) {
+        if (enabled) {
+            biometricAuthManager.showBiometricPrompt(
+                activity = activity,
+                title = "Verify Identity",
+                subtitle = "Authenticate to enable biometric security",
+                onSuccess = { onVerified() },
+                onError = { }
+            )
+        } else {
+            onVerified()
+        }
     }
 
     fun toggleBiometricOnStartup(enabled: Boolean) {

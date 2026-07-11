@@ -98,6 +98,37 @@ class BiometricAuthManager @Inject constructor(
         }
     }
 
+    fun showBiometricPrompt(
+        activity: FragmentActivity,
+        title: String = "Authenticate",
+        subtitle: String = "Verify your identity",
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val executor = ContextCompat.getMainExecutor(context)
+        val callback = object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                super.onAuthenticationSucceeded(result)
+                onSuccess()
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                super.onAuthenticationError(errorCode, errString)
+                onError(errString.toString())
+            }
+            override fun onAuthenticationFailed() {
+                super.onAuthenticationFailed()
+            }
+        }
+        val biometricPrompt = BiometricPrompt(activity, executor, callback)
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(title)
+            .setSubtitle(subtitle)
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setNegativeButtonText("Cancel")
+            .build()
+        biometricPrompt.authenticate(promptInfo)
+    }
+
     fun hashPin(pin: String): String {
         return try {
             val digest = MessageDigest.getInstance("SHA-256")

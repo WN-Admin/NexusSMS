@@ -1,6 +1,8 @@
 package com.nexusmedia.nexussms.data.repository
 
 import android.content.Context
+import android.net.Uri
+import android.provider.ContactsContract
 import android.provider.Telephony
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
@@ -53,22 +55,26 @@ class SmsImporter @Inject constructor(
                     isEncrypted = false
                 )
 
-                conversations.getOrPut(address) { mutableListOf() }.add(message)
+                conversations.getOrPut(normalizePhone(address)) { mutableListOf() }.add(message)
             }
         }
 
         val existingConversations = conversationRepository.getAllConversations().first()
 
-        for ((address, messages) in conversations) {
+        for ((normalizedAddress, messages) in conversations) {
+            val address = messages.firstOrNull()?.let { msg ->
+                if (msg.senderPhoneNumber == "self") msg.recipientPhoneNumber else msg.senderPhoneNumber
+            } ?: normalizedAddress
             val existing = existingConversations.find { it.participantPhoneNumbers == address }
 
             val conversationId = if (existing != null) {
                 existing.id
             } else {
+                val contactName = getContactName(address)
                 val newConv = Conversation(
                     id = UUID.randomUUID().toString(),
                     participantPhoneNumbers = address,
-                    displayName = address,
+                    displayName = contactName,
                     lastMessage = messages.lastOrNull()?.content ?: "",
                     lastMessageTime = messages.lastOrNull()?.timestamp ?: 0L,
                     unreadCount = 0
@@ -84,6 +90,31 @@ class SmsImporter @Inject constructor(
         }
 
         return ImportResult(imported, conversations.size)
+    }
+
+    private fun normalizePhone(phone: String): String {
+        return phone.replace(Regex("[^+\\d]"), "")
+    }
+
+    private fun getContactName(phoneNumber: String): String {
+        val uri = Uri.withAppendedPath(
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+            Uri.encode(phoneNumber)
+        )
+        val cursor = context.contentResolver.query(
+            uri,
+            arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+            null, null, null
+        )
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val nameIndex = it.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                if (nameIndex >= 0) {
+                    return it.getString(nameIndex) ?: phoneNumber
+                }
+            }
+        }
+        return phoneNumber
     }
 
     data class ImportResult(val messagesImported: Int, val conversationsImported: Int)
