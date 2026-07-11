@@ -34,16 +34,16 @@ class SecuritySettingsViewModel @Inject constructor(
             _settings.value = current
         }
         appSecuritySettingsDao.getSecuritySettings()
-            .onEach { _settings.value = it }
+            .onEach { _settings.value = it ?: _settings.value ?: AppSecuritySettings() }
             .launchIn(viewModelScope)
     }
 
     private fun update(transform: AppSecuritySettings.() -> AppSecuritySettings) {
-        val current = _settings.value ?: return
+        val current = _settings.value ?: AppSecuritySettings()
         val updated = current.transform()
         _settings.value = updated
         viewModelScope.launch {
-            appSecuritySettingsDao.updateSettings(updated)
+            appSecuritySettingsDao.insertSettings(updated)
         }
     }
 

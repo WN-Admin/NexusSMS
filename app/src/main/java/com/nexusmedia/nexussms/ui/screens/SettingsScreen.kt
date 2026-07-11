@@ -182,7 +182,6 @@ fun SettingsScreen(
                 SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved") { navController.navigate("signatures") }
             }
             item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages") { navController.navigate("scheduled") } }
-            item { SettingsItem(title = "Message Encryption", subtitle = "AES-256 Encryption enabled") { navController.navigate("security") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -192,10 +191,16 @@ fun SettingsScreen(
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
+                SettingsSection(title = "Security & Privacy")
+            }
+            item { SettingsItem(title = "Security Settings", subtitle = "App lock, biometrics, privacy") { navController.navigate("security") } }
+            item { SettingsItem(title = "Backup & Restore", subtitle = "Google Drive backup") { navController.navigate("backup") } }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Integrations")
             }
             item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms") { navController.navigate("social") } }
-            item { SettingsItem(title = "RCS Support", subtitle = "Rich Communication Services") { navController.navigate("security") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))

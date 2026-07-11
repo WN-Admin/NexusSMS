@@ -53,7 +53,8 @@ fun SecuritySettingsScreen(
     viewModel: SecuritySettingsViewModel = hiltViewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
-    val activity = LocalContext.current as? FragmentActivity
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
 
     var showPinDialog by remember { mutableStateOf(false) }
     var pinStep by remember { mutableStateOf(0) }
