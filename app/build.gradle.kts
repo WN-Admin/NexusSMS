@@ -23,19 +23,23 @@ android {
     }
 
     signingConfigs {
-        create("release") {
+        create("app") {
             storeFile = file("release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: ""
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            storePassword = "nexussms123"
+            keyAlias = "nexussms"
+            keyPassword = "nexussms123"
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("app")
+            isDebuggable = true
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("app")
         }
     }
 

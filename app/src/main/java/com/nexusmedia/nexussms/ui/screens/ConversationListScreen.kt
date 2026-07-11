@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,12 +24,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -57,7 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -126,9 +122,9 @@ fun ConversationListScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
+    val needsPermission by viewModel.needsPermission.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    var showImportPermissionDialog by remember { mutableStateOf(false) }
 
     val importPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -137,7 +133,20 @@ fun ConversationListScreen(
         if (allGranted) {
             viewModel.importSms()
         } else {
-            showImportPermissionDialog = true
+            viewModel.setNeedsPermission(true)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val readSms = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        val readContacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        if (readSms && readContacts) {
+            viewModel.checkAndAutoImport()
+        } else {
+            val needed = mutableListOf<String>()
+            if (!readSms) needed.add(Manifest.permission.READ_SMS)
+            if (!readContacts) needed.add(Manifest.permission.READ_CONTACTS)
+            importPermissionLauncher.launch(needed.toTypedArray())
         }
     }
 
@@ -164,35 +173,6 @@ fun ConversationListScreen(
                             contentDescription = "Search",
                             tint = Color.White
                         )
-                    }
-                    IconButton(
-                        onClick = {
-                            val readSms = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-                            val readContacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-                            if (readSms && readContacts) {
-                                viewModel.importSms()
-                            } else {
-                                val needed = mutableListOf<String>()
-                                if (!readSms) needed.add(Manifest.permission.READ_SMS)
-                                if (!readContacts) needed.add(Manifest.permission.READ_CONTACTS)
-                                importPermissionLauncher.launch(needed.toTypedArray())
-                            }
-                        },
-                        enabled = !isImporting
-                    ) {
-                        if (isImporting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.CloudDownload,
-                                contentDescription = "Import SMS",
-                                tint = Color.White
-                            )
-                        }
                     }
                 }
             )
@@ -301,15 +281,15 @@ fun ConversationListScreen(
         }
     }
 
-    if (showImportPermissionDialog) {
+    if (needsPermission) {
         AlertDialog(
-            onDismissRequest = { showImportPermissionDialog = false },
+            onDismissRequest = { viewModel.setNeedsPermission(false) },
             title = { Text("Permissions Required") },
             text = {
-                Text("SMS and Contacts permissions are needed to import your existing messages. Please grant them in Settings > Apps > NexusSMS > Permissions.")
+                Text("SMS and Contacts permissions are needed to import your existing messages and show contact names. Please grant them in Settings > Apps > NexusSMS > Permissions.")
             },
             confirmButton = {
-                TextButton(onClick = { showImportPermissionDialog = false }) {
+                TextButton(onClick = { viewModel.setNeedsPermission(false) }) {
                     Text("OK")
                 }
             }
@@ -345,16 +325,6 @@ private fun SwipeableConversationItem(
     )
 
     val dismissDirection = dismissState.dismissDirection
-    val swipeProgress by animateFloatAsState(
-        targetValue = when {
-            dismissDirection == SwipeToDismissBoxValue.StartToEnd ->
-                dismissState.progress
-            dismissDirection == SwipeToDismissBoxValue.EndToStart ->
-                dismissState.progress
-            else -> 0f
-        },
-        label = "swipe_progress"
-    )
 
     SwipeToDismissBox(
         state = dismissState,
