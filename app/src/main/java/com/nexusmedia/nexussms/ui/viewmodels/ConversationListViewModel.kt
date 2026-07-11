@@ -4,19 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
+import com.nexusmedia.nexussms.data.repository.SmsImporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class ConversationListViewModel @Inject constructor(
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val smsImporter: SmsImporter
 ) : ViewModel() {
 
     private val _conversationList = MutableStateFlow<List<Conversation>>(emptyList())
@@ -31,8 +32,13 @@ class ConversationListViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _isImporting = MutableStateFlow(false)
+    val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
+
+    private val _importResult = MutableStateFlow<String?>(null)
+    val importResult: StateFlow<String?> = _importResult.asStateFlow()
+
     init {
-        // Continuously observe conversation lists; toggle isLoading off on the first emission.
         conversationRepository.getAllConversations()
             .onEach {
                 _conversationList.value = it
@@ -94,6 +100,20 @@ class ConversationListViewModel @Inject constructor(
     fun markAsRead(conversationId: String) {
         viewModelScope.launch {
             conversationRepository.clearUnreadCount(conversationId)
+        }
+    }
+
+    fun importSms() {
+        viewModelScope.launch {
+            _isImporting.value = true
+            try {
+                val result = smsImporter.importAllSms()
+                _importResult.value = "Imported ${result.messagesImported} messages from ${result.conversationsImported} conversations"
+            } catch (e: Exception) {
+                _importResult.value = "Import failed: ${e.message}"
+            } finally {
+                _isImporting.value = false
+            }
         }
     }
 }
