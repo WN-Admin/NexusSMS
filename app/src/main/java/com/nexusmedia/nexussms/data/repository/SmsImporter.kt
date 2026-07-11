@@ -8,6 +8,7 @@ import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
+import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,12 +21,25 @@ class SmsImporter @Inject constructor(
 ) {
     suspend fun importAllSms(): ImportResult {
         var imported = 0
+        Timber.d("Starting SMS import...")
 
-        val cursor = context.contentResolver.query(
-            Telephony.Sms.CONTENT_URI,
-            null, null, null,
-            "${Telephony.Sms.DATE} ASC"
-        ) ?: return ImportResult(0, 0)
+        val cursor = try {
+            context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                null, null, null,
+                "${Telephony.Sms.DATE} ASC"
+            )
+        } catch (e: SecurityException) {
+            Timber.e(e, "Permission denied querying SMS")
+            return ImportResult(0, 0)
+        }
+
+        if (cursor == null) {
+            Timber.w("SMS cursor is null - no messages or permission denied")
+            return ImportResult(0, 0)
+        }
+
+        Timber.d("SMS cursor count: ${cursor.count}")
 
         val conversations = mutableMapOf<String, MutableList<Message>>()
 
@@ -34,6 +48,11 @@ class SmsImporter @Inject constructor(
             val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
             val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
             val typeIndex = it.getColumnIndex(Telephony.Sms.TYPE)
+
+            if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0 || typeIndex < 0) {
+                Timber.e("SMS column index error: address=$addressIndex, body=$bodyIndex, date=$dateIndex, type=$typeIndex")
+                return ImportResult(0, 0)
+            }
 
             while (it.moveToNext()) {
                 val address = it.getString(addressIndex) ?: "unknown"
@@ -59,13 +78,17 @@ class SmsImporter @Inject constructor(
             }
         }
 
+        Timber.d("Found ${conversations.size} unique conversations with ${conversations.values.sumOf { it.size }} messages")
+
         val existingConversations = conversationRepository.getAllConversations().first()
 
         for ((normalizedAddress, messages) in conversations) {
             val address = messages.firstOrNull()?.let { msg ->
                 if (msg.senderPhoneNumber == "self") msg.recipientPhoneNumber else msg.senderPhoneNumber
             } ?: normalizedAddress
-            val existing = existingConversations.find { it.participantPhoneNumbers == address }
+            val existing = existingConversations.find {
+                normalizePhone(it.participantPhoneNumbers) == normalizedAddress
+            }
 
             val conversationId = if (existing != null) {
                 existing.id
@@ -89,6 +112,7 @@ class SmsImporter @Inject constructor(
             }
         }
 
+        Timber.d("Import complete: $imported messages in ${conversations.size} conversations")
         return ImportResult(imported, conversations.size)
     }
 
@@ -101,11 +125,16 @@ class SmsImporter @Inject constructor(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
             Uri.encode(phoneNumber)
         )
-        val cursor = context.contentResolver.query(
-            uri,
-            arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
-            null, null, null
-        )
+        val cursor = try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+                null, null, null
+            )
+        } catch (e: SecurityException) {
+            Timber.e(e, "Permission denied looking up contact for $phoneNumber")
+            null
+        }
         cursor?.use {
             if (it.moveToFirst()) {
                 val nameIndex = it.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)

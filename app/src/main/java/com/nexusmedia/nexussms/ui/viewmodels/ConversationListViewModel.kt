@@ -116,4 +116,8 @@ class ConversationListViewModel @Inject constructor(
             }
         }
     }
+
+    fun clearImportResult() {
+        _importResult.value = null
+    }
 }

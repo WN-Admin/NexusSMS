@@ -21,18 +21,21 @@ import javax.inject.Inject
 data class PlatformInfo(
     val id: String,
     val name: String,
-    val packageName: String,
+    val packageNames: List<String>,
     val color: Long,
     val webLoginUrl: String
 )
 
 object SocialPlatforms {
     val all = listOf(
-        PlatformInfo("DISCORD", "Discord", "com.discord", 0xFF5865F2, "https://discord.com/login"),
-        PlatformInfo("TELEGRAM", "Telegram", "org.telegram.messenger", 0xFF0088CC, "https://web.telegram.org"),
-        PlatformInfo("FACEBOOK_MESSENGER", "Messenger", "com.facebook.orca", 0xFF0084FF, "https://www.messenger.com/login"),
-        PlatformInfo("VIBER", "Viber", "com.viber.voip", 0xFF7360F2, "https://www.viber.com"),
-        PlatformInfo("MATRIX", "Matrix", "im.vector.app", 0xFF0DBD8B, "https://app.element.io")
+        PlatformInfo("DISCORD", "Discord", listOf("com.discord"), 0xFF5865F2, "https://discord.com/login"),
+        PlatformInfo("TELEGRAM", "Telegram", listOf("org.telegram.messenger", "org.telegram.messenger.web"), 0xFF0088CC, "https://web.telegram.org"),
+        PlatformInfo("FACEBOOK_MESSENGER", "Messenger", listOf("com.facebook.orca", "com.facebook.mlite"), 0xFF0084FF, "https://www.messenger.com/login"),
+        PlatformInfo("VIBER", "Viber", listOf("com.viber.voip"), 0xFF7360F2, "https://www.viber.com"),
+        PlatformInfo("SIGNAL", "Signal", listOf("org.thoughtcrime.securesms"), 0xFF3A76F0, "https://signal.org"),
+        PlatformInfo("WHATSAPP", "WhatsApp", listOf("com.whatsapp", "com.whatsapp.w4b"), 0xFF25D366, "https://web.whatsapp.com"),
+        PlatformInfo("MATRIX", "Matrix", listOf("im.vector.app", "im.vector.app.x"), 0xFF0DBD8B, "https://app.element.io"),
+        PlatformInfo("SLACK", "Slack", listOf("com.Slack"), 0xFF4A154B, "https://slack.com/signin")
     )
 }
 
@@ -66,14 +69,19 @@ class SocialAccountsViewModel @Inject constructor(
     fun checkInstalledApps() {
         val result = mutableMapOf<String, Boolean>()
         SocialPlatforms.all.forEach { platform ->
-            result[platform.id] = isAppInstalled(platform.packageName)
+            result[platform.id] = platform.packageNames.any { isAppInstalled(it) }
         }
         _installedApps.value = result
     }
 
     private fun isAppInstalled(packageName: String): Boolean {
         return try {
-            context.packageManager.getPackageInfo(packageName, 0)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(packageName, 0)
+            }
             true
         } catch (e: PackageManager.NameNotFoundException) {
             false
@@ -83,9 +91,12 @@ class SocialAccountsViewModel @Inject constructor(
     fun connectPlatform(platformInfo: PlatformInfo) {
         val isInstalled = _installedApps.value[platformInfo.id] == true
         if (isInstalled) {
-            val launchIntent = context.packageManager.getLaunchIntentForPackage(platformInfo.packageName)
-            if (launchIntent != null) {
-                context.startActivity(launchIntent)
+            val installedPackage = platformInfo.packageNames.firstOrNull { isAppInstalled(it) }
+            if (installedPackage != null) {
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(installedPackage)
+                if (launchIntent != null) {
+                    context.startActivity(launchIntent)
+                }
             }
         } else {
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(platformInfo.webLoginUrl))
