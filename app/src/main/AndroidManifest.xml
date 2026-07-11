@@ -44,11 +44,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.NexusSMS"
-        android:name="com.nexussms.NexusSMSApplication"
+        android:name="com.nexusmedia.nexussms.NexusSMSApplication"
         tools:targetApi="33">
 
         <activity
-            android:name="com.nexussms.MainActivity"
+            android:name="com.nexusmedia.nexussms.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.NexusSMS">
             <intent-filter>
@@ -67,7 +67,7 @@
 
         <!-- SMS Receiver -->
         <receiver
-            android:name="com.nexussms.receivers.SmsReceiver"
+            android:name="com.nexusmedia.nexussms.receivers.SmsReceiver"
             android:exported="true"
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
@@ -77,7 +77,7 @@
 
         <!-- Message Service (bound service, no special permission needed) -->
         <service
-            android:name="com.nexussms.services.MessageService"
+            android:name="com.nexusmedia.nexussms.services.MessageService"
             android:exported="false" />
 
         <!-- Disable WorkManager's default initializer so the Hilt-aware Configuration.Provider on

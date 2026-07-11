@@ -2,6 +2,16 @@
 
 A feature-rich Android SMS/MMS messaging application with RCS support, end-to-end encryption, social media integration, and a fully customizable UI built with Jetpack Compose and Material Design 3.
 
+**By Nexus Media** | admin@watchnexus.ca | Canada
+
+### App Identity
+| Field | Value |
+|---|---|
+| Application ID | `com.nexusmedia.nexussms` |
+| Namespace | `com.nexusmedia.nexussms` |
+| App Label | NexusSMS |
+| Version | 1.0.3 (code: 103) |
+
 ## Features
 
 ### Messaging
@@ -61,7 +71,7 @@ Unified account management with connect/disconnect flow and sync status.
 ## Architecture
 
 ```
-com.nexussms/
+com.nexusmedia.nexussms/
 ├── data/
 │   ├── models/          # 10 Room entities
 │   ├── database/        # NexusSMSDatabase, DAOs, migrations

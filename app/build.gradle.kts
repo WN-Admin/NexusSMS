@@ -6,15 +6,15 @@ plugins {
 }
 
 android {
-    namespace = "com.nexussms"
+    namespace = "com.nexusmedia.nexussms"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.nexussms"
+        applicationId = "com.nexusmedia.nexussms"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 103
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -53,6 +53,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

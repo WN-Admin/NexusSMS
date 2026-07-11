@@ -1,7 +1,7 @@
 # NexusSMS App
--keep class com.nexussms.** { *; }
--keep interface com.nexussms.** { *; }
--keep enum com.nexussms.** { *; }
+-keep class com.nexusmedia.nexussms.** { *; }
+-keep interface com.nexusmedia.nexussms.** { *; }
+-keep enum com.nexusmedia.nexussms.** { *; }
 
 # Room
 -keep class * extends androidx.room.RoomDatabase
