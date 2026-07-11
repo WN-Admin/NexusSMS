@@ -10,8 +10,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,32 +22,39 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.StickyNote2
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.lazy.LazyColumn
@@ -66,9 +71,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.ui.components.EmojiPicker
@@ -98,6 +107,7 @@ fun ChatDetailScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var reactingMessageId by remember { mutableStateOf<String?>(null) }
     var showLocationPermissionDenied by remember { mutableStateOf(false) }
+    var showAttachments by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -139,7 +149,7 @@ fun ChatDetailScreen(
     val listState = rememberLazyListState()
 
     if (showEmojiPicker) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { showEmojiPicker = false },
             title = { Text("Pick an emoji") },
             text = {
@@ -172,11 +182,15 @@ fun ChatDetailScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(conversation?.displayName ?: "Chat")
+                        Text(
+                            conversation?.displayName ?: "Chat",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                         Text(
                             text = conversation?.participantPhoneNumbers ?: "",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
+                            color = Color.White.copy(alpha = 0.8f)
                         )
                     }
                 },
@@ -213,167 +227,138 @@ fun ChatDetailScreen(
                 }
             }
 
-            // Message input
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(8.dp)
-            ) {
+            if (shortcutSuggestions.isNotEmpty()) {
+                ShortcutSuggestionsBar(
+                    suggestions = shortcutSuggestions,
+                    onInsert = { trigger, expansion ->
+                        viewModel.applyShortcutSuggestion(trigger, expansion)
+                    }
+                )
+            }
+
+            var showScheduleDialog by remember { mutableStateOf(false) }
+
+            if (showScheduleDialog) {
+                val calendar = remember { Calendar.getInstance() }
+                var scheduleTime by remember { mutableStateOf(System.currentTimeMillis() + 3600000L) }
+                val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
+
+                AlertDialog(
+                    onDismissRequest = { showScheduleDialog = false },
+                    title = { Text("Schedule Message") },
+                    text = {
+                        Column {
+                            Text("Send this message later.")
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Scheduled for: ${dateFormat.format(Date(scheduleTime))}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        DatePickerDialog(
+                                            context,
+                                            { _, year, month, day ->
+                                                calendar.set(year, month, day)
+                                                scheduleTime = calendar.timeInMillis
+                                            },
+                                            calendar.get(Calendar.YEAR),
+                                            calendar.get(Calendar.MONTH),
+                                            calendar.get(Calendar.DAY_OF_MONTH)
+                                        ).show()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Date", style = MaterialTheme.typography.labelSmall)
+                                }
+                                Button(
+                                    onClick = {
+                                        TimePickerDialog(
+                                            context,
+                                            { _, hour, minute ->
+                                                calendar.set(Calendar.HOUR_OF_DAY, hour)
+                                                calendar.set(Calendar.MINUTE, minute)
+                                                scheduleTime = calendar.timeInMillis
+                                            },
+                                            calendar.get(Calendar.HOUR_OF_DAY),
+                                            calendar.get(Calendar.MINUTE),
+                                            true
+                                        ).show()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Time", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.scheduleMessage(
+                                    conversationId = conversationId,
+                                    recipientPhone = conversation?.participantPhoneNumbers ?: "",
+                                    scheduleAt = scheduleTime
+                                )
+                                showScheduleDialog = false
+                            }
+                        ) { Text("Schedule") }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showScheduleDialog = false }
+                        ) { Text("Cancel") }
+                    }
+                )
+            }
+
+            if (showLocationPermissionDenied) {
+                AlertDialog(
+                    onDismissRequest = { showLocationPermissionDenied = false },
+                    title = { Text("Location Permission Needed") },
+                    text = { Text("Please grant location permission to share your location.") },
+                    confirmButton = {
+                        TextButton(onClick = { showLocationPermissionDenied = false }) {
+                            Text("OK")
+                        }
+                    }
+                )
+            }
+
+            if (showAttachments && messageText.isEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    MessageTypeButton(
-                        label = "SMS",
-                        isSelected = selectedMessageType == "SMS",
-                        onClick = { viewModel.setMessageType("SMS") }
+                    AttachmentButton(
+                        icon = Icons.Default.Image,
+                        label = "Photo",
+                        onClick = { imagePickerLauncher.launch("image/*") }
                     )
-                    MessageTypeButton(
-                        label = "RCS",
-                        isSelected = selectedMessageType == "RCS",
-                        onClick = { viewModel.setMessageType("RCS") }
+                    AttachmentButton(
+                        icon = Icons.Default.AttachFile,
+                        label = "File",
+                        onClick = { filePickerLauncher.launch("*/*") }
                     )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                        Icon(Icons.Default.Image, contentDescription = "Image")
-                    }
-                    IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "Attachment")
-                    }
-                    IconButton(onClick = { showEmojiPicker = true }) {
-                        Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji")
-                    }
-                    IconButton(onClick = { showStickerPicker = true }) {
-                        Icon(Icons.Default.StickyNote2, contentDescription = "Stickers")
-                    }
-
-                    var showScheduleDialog by remember { mutableStateOf(false) }
-
-                    if (showScheduleDialog) {
-                        val calendar = remember { Calendar.getInstance() }
-                        var scheduleTime by remember { mutableStateOf(System.currentTimeMillis() + 3600000L) }
-                        val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
-
-                        AlertDialog(
-                            onDismissRequest = { showScheduleDialog = false },
-                            title = { Text("Schedule Message") },
-                            text = {
-                                Column {
-                                    Text("Send this message later.")
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "Scheduled for: ${dateFormat.format(Date(scheduleTime))}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Button(
-                                            onClick = {
-                                                DatePickerDialog(
-                                                    context,
-                                                    { _, year, month, day ->
-                                                        calendar.set(year, month, day)
-                                                        scheduleTime = calendar.timeInMillis
-                                                    },
-                                                    calendar.get(Calendar.YEAR),
-                                                    calendar.get(Calendar.MONTH),
-                                                    calendar.get(Calendar.DAY_OF_MONTH)
-                                                ).show()
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text("Date", style = MaterialTheme.typography.labelSmall)
-                                        }
-                                        Button(
-                                            onClick = {
-                                                TimePickerDialog(
-                                                    context,
-                                                    { _, hour, minute ->
-                                                        calendar.set(Calendar.HOUR_OF_DAY, hour)
-                                                        calendar.set(Calendar.MINUTE, minute)
-                                                        scheduleTime = calendar.timeInMillis
-                                                    },
-                                                    calendar.get(Calendar.HOUR_OF_DAY),
-                                                    calendar.get(Calendar.MINUTE),
-                                                    true
-                                                ).show()
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text("Time", style = MaterialTheme.typography.labelSmall)
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        viewModel.scheduleMessage(
-                                            conversationId = conversationId,
-                                            recipientPhone = conversation?.participantPhoneNumbers ?: "",
-                                            scheduleAt = scheduleTime
-                                        )
-                                        showScheduleDialog = false
-                                    }
-                                ) { Text("Schedule") }
-                            },
-                            dismissButton = {
-                                TextButton(
-                                    onClick = { showScheduleDialog = false }
-                                ) { Text("Cancel") }
-                            }
-                        )
-                    }
-
-                    if (showLocationPermissionDenied) {
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { showLocationPermissionDenied = false },
-                            title = { Text("Location Permission Needed") },
-                            text = { Text("Please grant location permission to share your location.") },
-                            confirmButton = {
-                                androidx.compose.material3.TextButton(onClick = { showLocationPermissionDenied = false }) {
-                                    Text("OK")
-                                }
-                            }
-                        )
-                    }
-
-                    TextField(
-                        value = messageText,
-                        onValueChange = { viewModel.updateMessageText(it) },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Message...") },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(
-                            onSend = {
-                                conversation?.let { conv ->
-                                    viewModel.sendMessage(conversationId, conv.participantPhoneNumbers)
-                                }
-                            }
-                        ),
-                        singleLine = true
+                    AttachmentButton(
+                        icon = Icons.Default.EmojiEmotions,
+                        label = "Sticker",
+                        onClick = { showStickerPicker = true }
                     )
-
-                    IconButton(
-                        onClick = { showScheduleDialog = true },
-                        enabled = messageText.isNotEmpty()
-                    ) {
-                        Icon(Icons.Default.Schedule, contentDescription = "Schedule")
-                    }
-
-                    IconButton(
+                    AttachmentButton(
+                        icon = Icons.Default.Schedule,
+                        label = "Schedule",
+                        onClick = { showScheduleDialog = true }
+                    )
+                    AttachmentButton(
+                        icon = Icons.Default.MyLocation,
+                        label = "Location",
                         onClick = {
                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                                 val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -389,32 +374,151 @@ fun ChatDetailScreen(
                                 locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                             }
                         }
-                    ) {
-                        Icon(Icons.Default.Place, contentDescription = "Location")
-                    }
+                    )
+                }
+            }
 
-                    IconButton(
-                        onClick = {
-                            conversation?.let { conv ->
-                                viewModel.sendMessage(conversationId, conv.participantPhoneNumbers)
-                            }
-                        },
-                        enabled = !isSending && messageText.isNotEmpty()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (selectedMessageType == "RCS") MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clickable {
+                            viewModel.setMessageType(
+                                if (selectedMessageType == "SMS") "RCS" else "SMS"
+                            )
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send")
+                        Text(
+                            text = selectedMessageType,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (selectedMessageType == "RCS") MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = "Switch",
+                            modifier = Modifier.size(14.dp),
+                            tint = if (selectedMessageType == "RCS") MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
-                if (shortcutSuggestions.isNotEmpty()) {
-                    ShortcutSuggestionsBar(
-                        suggestions = shortcutSuggestions,
-                        onInsert = { trigger, expansion ->
-                            viewModel.applyShortcutSuggestion(trigger, expansion)
+                OutlinedTextField(
+                    value = messageText,
+                    onValueChange = { viewModel.updateMessageText(it) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp, max = 120.dp),
+                    placeholder = {
+                        Text(
+                            "Message",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            conversation?.let { conv ->
+                                viewModel.sendMessage(conversationId, conv.participantPhoneNumbers)
+                            }
                         }
+                    ),
+                    maxLines = 5,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
+
+                IconButton(onClick = { showEmojiPicker = true }) {
+                    Icon(
+                        Icons.Default.EmojiEmotions,
+                        contentDescription = "Emoji",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                FilledIconButton(
+                    onClick = {
+                        conversation?.let { conv ->
+                            viewModel.sendMessage(conversationId, conv.participantPhoneNumbers)
+                        }
+                    },
+                    enabled = !isSending && messageText.isNotEmpty(),
+                    modifier = Modifier.size(40.dp),
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = if (messageText.isNotEmpty()) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        modifier = Modifier.size(20.dp),
+                        tint = if (messageText.isNotEmpty()) Color.White
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AttachmentButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp
+        )
     }
 }
 
@@ -431,16 +535,42 @@ fun MessageBubble(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 3.dp, horizontal = 4.dp),
         horizontalArrangement = if (isIncoming) Arrangement.Start else Arrangement.End
     ) {
+        if (isIncoming) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = message.senderPhoneNumber.firstOrNull()?.uppercase() ?: "?",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+
         Column(
-            horizontalAlignment = if (isIncoming) Alignment.Start else Alignment.End
+            horizontalAlignment = if (isIncoming) Alignment.Start else Alignment.End,
+            modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .widthIn(max = 280.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth()
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = if (isIncoming) 4.dp else 16.dp,
+                            topEnd = if (isIncoming) 16.dp else 4.dp,
+                            bottomStart = 16.dp,
+                            bottomEnd = 16.dp
+                        )
+                    )
                     .background(
                         color = if (isIncoming) {
                             MaterialTheme.colorScheme.surfaceVariant
@@ -452,7 +582,7 @@ fun MessageBubble(
                         onClick = {},
                         onLongClick = onLongClick
                     )
-                    .padding(12.dp)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Column {
                     Text(
@@ -462,7 +592,8 @@ fun MessageBubble(
                         } else {
                             Color.White
                         },
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = 20.sp
                     )
                     if (message.reactions.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(4.dp))
@@ -471,16 +602,42 @@ fun MessageBubble(
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(message.timestamp),
-                        color = if (isIncoming) {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        } else {
-                            Color.White.copy(alpha = 0.7f)
-                        },
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(message.timestamp),
+                            color = if (isIncoming) {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            } else {
+                                Color.White.copy(alpha = 0.7f)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.sp
+                        )
+                        if (!isIncoming) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val statusIcon = when (message.status) {
+                                "SENT" -> "\u2713"
+                                "DELIVERED" -> "\u2713\u2713"
+                                "READ" -> "\u2713\u2713"
+                                "FAILED" -> "\u2717"
+                                else -> ""
+                            }
+                            if (statusIcon.isNotEmpty()) {
+                                Text(
+                                    text = statusIcon,
+                                    color = if (message.status == "READ") Color(0xFF4FC3F7)
+                                    else Color.White.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

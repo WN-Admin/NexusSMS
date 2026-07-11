@@ -1,5 +1,14 @@
 package com.nexusmedia.nexussms.ui.viewmodels
 
+import android.app.Activity
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.telephony.SmsManager
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Conversation
@@ -11,6 +20,7 @@ import com.nexusmedia.nexussms.features.rcs.RcsService
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +34,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val messageRepository: MessageRepository,
     private val conversationRepository: ConversationRepository,
     private val scheduledMessageRepository: ScheduledMessageRepository,
@@ -87,19 +98,92 @@ class ChatViewModel @Inject constructor(
 
                 when (_selectedMessageType.value) {
                     "SMS" -> {
+                        val messageId = java.util.UUID.randomUUID().toString()
                         val message = Message(
+                            id = messageId,
                             conversationId = conversationId,
                             senderPhoneNumber = "self",
                             recipientPhoneNumber = recipientPhone,
                             content = messageContent,
                             timestamp = System.currentTimeMillis(),
                             type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
-                            status = "SENT",
+                            status = "SENDING",
                             isEncrypted = true,
                             encryptionAlgorithm = "AES256",
                             mediaUrls = mediaUrlsStr
                         )
                         messageRepository.insertMessage(message)
+
+                        try {
+                            val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                context.getSystemService(SmsManager::class.java)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                SmsManager.getDefault()
+                            }
+
+                            val parts = smsManager.divideMessage(messageContent)
+                            val sentIntents = ArrayList<PendingIntent>()
+                            val deliveredIntents = ArrayList<PendingIntent>()
+
+                            for (i in parts.indices) {
+                                val sentIntent = PendingIntent.getBroadcast(
+                                    context,
+                                    messageId.hashCode() + i,
+                                    Intent("com.nexusmedia.nexussms.SMS_SENT").setPackage(context.packageName),
+                                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                                )
+                                sentIntents.add(sentIntent)
+
+                                val deliveredIntent = PendingIntent.getBroadcast(
+                                    context,
+                                    messageId.hashCode() + i + 10000,
+                                    Intent("com.nexusmedia.nexussms.SMS_DELIVERED").setPackage(context.packageName),
+                                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                                )
+                                deliveredIntents.add(deliveredIntent)
+                            }
+
+                            val sentReceiver = object : BroadcastReceiver() {
+                                override fun onReceive(ctx: Context?, intent: Intent?) {
+                                    val resultCode = resultCode
+                                    viewModelScope.launch {
+                                        val updatedMessage = message.copy(
+                                            status = if (resultCode == Activity.RESULT_OK) "SENT" else "FAILED"
+                                        )
+                                        messageRepository.updateMessage(updatedMessage)
+                                    }
+                                    try { context.unregisterReceiver(this) } catch (_: Exception) {}
+                                }
+                            }
+                            context.registerReceiver(
+                                sentReceiver,
+                                IntentFilter("com.nexusmedia.nexussms.SMS_SENT"),
+                                Context.RECEIVER_NOT_EXPORTED
+                            )
+
+                            val deliveredReceiver = object : BroadcastReceiver() {
+                                override fun onReceive(ctx: Context?, intent: Intent?) {
+                                    try { context.unregisterReceiver(this) } catch (_: Exception) {}
+                                }
+                            }
+                            context.registerReceiver(
+                                deliveredReceiver,
+                                IntentFilter("com.nexusmedia.nexussms.SMS_DELIVERED"),
+                                Context.RECEIVER_NOT_EXPORTED
+                            )
+
+                            smsManager.sendMultipartTextMessage(
+                                recipientPhone,
+                                null,
+                                parts,
+                                sentIntents,
+                                deliveredIntents
+                            )
+                        } catch (e: Exception) {
+                            messageRepository.updateMessage(message.copy(status = "FAILED"))
+                            e.printStackTrace()
+                        }
                     }
                     "RCS" -> {
                         rcsService.sendRcsMessage(

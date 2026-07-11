@@ -97,7 +97,7 @@ fun MainScreen() {
                 ChatDetailScreen(conversationId = conversationId)
             }
             composable("settings") {
-                SettingsScreen()
+                SettingsScreen(navController = navController)
             }
             composable("shortcuts") {
                 ShortcutsScreen()

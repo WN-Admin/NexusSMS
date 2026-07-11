@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Warning
@@ -46,11 +47,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.nexusmedia.nexussms.ui.viewmodels.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    navController: NavController,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val themes by viewModel.themes.collectAsState()
@@ -88,6 +91,14 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
+                navigationIcon = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White,
+                        modifier = Modifier.clickable { navController.popBackStack() }
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
@@ -168,23 +179,23 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved")
+                SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved") { navController.navigate("signatures") }
             }
-            item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages") }
-            item { SettingsItem(title = "Message Encryption", subtitle = "AES-256 Encryption enabled") }
+            item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages") { navController.navigate("scheduled") } }
+            item { SettingsItem(title = "Message Encryption", subtitle = "AES-256 Encryption enabled") { navController.navigate("security") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Shortcuts")
             }
-            item { SettingsItem(title = "Quick Shortcuts", subtitle = "Manage shortcodes") }
+            item { SettingsItem(title = "Quick Shortcuts", subtitle = "Manage shortcodes") { navController.navigate("shortcuts") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Integrations")
             }
-            item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms") }
-            item { SettingsItem(title = "RCS Support", subtitle = "Rich Communication Services") }
+            item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms") { navController.navigate("social") } }
+            item { SettingsItem(title = "RCS Support", subtitle = "Rich Communication Services") { navController.navigate("security") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))

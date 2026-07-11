@@ -1,5 +1,6 @@
 package com.nexusmedia.nexussms.ui.screens
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,10 +17,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -27,15 +32,23 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +57,50 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.ui.viewmodels.ConversationListViewModel
+
+private val AvatarColors = listOf(
+    Color(0xFF5C6BC0),
+    Color(0xFF26A69A),
+    Color(0xFFEF5350),
+    Color(0xFFAB47BC),
+    Color(0xFF42A5F5),
+    Color(0xFF66BB6A),
+    Color(0xFFFFA726),
+    Color(0xFFEC407A),
+    Color(0xFF5C6BC0),
+    Color(0xFF8D6E63),
+    Color(0xFF78909C),
+    Color(0xFF7E57C2),
+)
+
+private fun avatarGradient(name: String): Brush {
+    val hash = name.hashCode()
+    val c1 = AvatarColors[((hash % AvatarColors.size) + AvatarColors.size) % AvatarColors.size]
+    val c2 = AvatarColors[((hash / AvatarColors.size % AvatarColors.size) + AvatarColors.size) % AvatarColors.size]
+    return Brush.verticalGradient(listOf(c1, c2))
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    return when {
+        diff < 60_000L -> "Now"
+        diff < 3_600_000L -> "${diff / 60_000}m"
+        diff < 86_400_000L -> {
+            val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestamp))
+        }
+        diff < 172_800_000L -> "Yesterday"
+        diff < 604_800_000L -> {
+            val sdf = java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestamp))
+        }
+        else -> {
+            val sdf = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestamp))
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,20 +112,60 @@ fun ConversationListScreen(
     val conversationList by viewModel.conversationList.collectAsState()
     val pinnedConversations by viewModel.pinnedConversations.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isImporting by viewModel.isImporting.collectAsState()
+    val importResult by viewModel.importResult.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(importResult) {
+        importResult?.let {
+            snackbarHostState.showSnackbar(it)
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Messages") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
-                )
+                ),
+                actions = {
+                    IconButton(onClick = { }) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.importSms() },
+                        enabled = !isImporting
+                    ) {
+                        if (isImporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.CloudDownload,
+                                contentDescription = "Import SMS",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNewConversationClick) {
-                Icon(Icons.Default.Add, contentDescription = "New Message")
+            FloatingActionButton(
+                onClick = onNewConversationClick,
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "New Message", tint = Color.White)
             }
         }
     ) { paddingValues ->
@@ -79,16 +176,32 @@ fun ConversationListScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Loading conversations...")
+                Text(
+                    "Loading conversations...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        } else if (conversationList.isEmpty()) {
+        } else if (conversationList.isEmpty() && pinnedConversations.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No conversations yet")
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "No conversations yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Tap + to start a new one",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -99,39 +212,50 @@ fun ConversationListScreen(
                 if (pinnedConversations.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Pinned",
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "PINNED",
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
                         )
                     }
-                    items(pinnedConversations) { conversation ->
-                        ConversationItem(
+                    items(
+                        items = pinnedConversations,
+                        key = { it.id }
+                    ) { conversation ->
+                        SwipeableConversationItem(
                             conversation = conversation,
                             onClick = { onConversationClick(conversation.id) },
                             onDeleteClick = { viewModel.deleteConversation(conversation.id) },
+                            showPinAction = false,
                             onUnpinClick = { viewModel.unpinConversation(conversation.id) }
                         )
                     }
-                    item {
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
 
-                item {
-                    Text(
-                        text = "Recent",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                items(conversationList) { conversation ->
-                    if (!conversation.isPinned) {
-                        ConversationItem(
+                val unpinned = conversationList.filter { !it.isPinned }
+                if (unpinned.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "RECENT",
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                    items(
+                        items = unpinned,
+                        key = { it.id }
+                    ) { conversation ->
+                        SwipeableConversationItem(
                             conversation = conversation,
                             onClick = { onConversationClick(conversation.id) },
                             onDeleteClick = { viewModel.deleteConversation(conversation.id) },
+                            showPinAction = true,
                             onPinClick = { viewModel.pinConversation(conversation.id) }
                         )
                     }
@@ -141,75 +265,230 @@ fun ConversationListScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConversationItem(
+private fun SwipeableConversationItem(
     conversation: Conversation,
+    onClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onClick: () -> Unit = {},
+    showPinAction: Boolean = false,
     onPinClick: (() -> Unit)? = null,
     onUnpinClick: (() -> Unit)? = null
 ) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onClick() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    if (showPinAction && onPinClick != null) onPinClick()
+                    false
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onDeleteClick()
+                    false
+                }
+                else -> false
+            }
+        }
+    )
+
+    val dismissDirection = dismissState.dismissDirection
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color by animateColorAsState(
+                when (dismissDirection) {
+                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primary
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                    else -> Color.Transparent
+                },
+                label = "swipe_bg"
+            )
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = when (dismissDirection) {
+                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                    else -> Alignment.CenterEnd
+                }
             ) {
-                Text(
-                    text = conversation.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp
-                )
+                if (dismissDirection == SwipeToDismissBoxValue.StartToEnd && showPinAction) {
+                    Icon(
+                        Icons.Default.PushPin,
+                        contentDescription = "Pin",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else if (dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
+        },
+        enableDismissFromEndToStart = true,
+        enableDismissFromStartToEnd = showPinAction,
+        content = {
+            ConversationItemRow(
+                conversation = conversation,
+                onClick = onClick,
+                onUnpinClick = onUnpinClick
+            )
+        }
+    )
+}
 
-            Spacer(modifier = Modifier.width(12.dp))
+@Composable
+private fun ConversationItemRow(
+    conversation: Conversation,
+    onClick: () -> Unit,
+    onUnpinClick: (() -> Unit)? = null
+) {
+    val displayName = conversation.displayName.ifBlank {
+        conversation.participantPhoneNumbers
+    }
+    val avatarChar = displayName.firstOrNull()?.uppercase() ?: "?"
+    val gradient = remember(displayName) { avatarGradient(displayName) }
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(gradient),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = avatarChar,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = conversation.displayName.ifEmpty { conversation.participantPhoneNumbers },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = conversation.lastMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Row {
-                if (onUnpinClick != null) {
-                    IconButton(onClick = onUnpinClick, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.PushPin, contentDescription = "Unpin")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (conversation.isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pinned",
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
-                } else if (onPinClick != null) {
-                    IconButton(onClick = onPinClick, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.PushPin, contentDescription = "Pin")
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (conversation.unreadCount > 0) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = formatTimestamp(conversation.lastMessageTime),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (conversation.unreadCount > 0) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (conversation.unreadCount > 0) FontWeight.SemiBold else FontWeight.Normal,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.padding(vertical = 2.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = conversation.lastMessage.ifBlank { "No messages yet" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (conversation.unreadCount > 0) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (conversation.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (conversation.unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(minOf(24.dp, (12 + conversation.unreadCount.toString().length * 8).dp))
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        )
                     }
                 }
-                IconButton(onClick = onDeleteClick, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+
+                if (onUnpinClick != null && conversation.isPinned) {
+                    IconButton(
+                        onClick = onUnpinClick,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.PushPin,
+                            contentDescription = "Unpin",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
-        HorizontalDivider()
     }
+
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 82.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        thickness = 0.5.dp
+    )
 }
