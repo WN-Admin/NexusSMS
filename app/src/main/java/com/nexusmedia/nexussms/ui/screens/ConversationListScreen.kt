@@ -1,6 +1,11 @@
 package com.nexusmedia.nexussms.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +29,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -37,6 +43,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -44,16 +51,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.ui.viewmodels.ConversationListViewModel
@@ -115,10 +127,24 @@ fun ConversationListScreen(
     val isImporting by viewModel.isImporting.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    var showImportPermissionDialog by remember { mutableStateOf(false) }
+
+    val importPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            viewModel.importSms()
+        } else {
+            showImportPermissionDialog = true
+        }
+    }
 
     LaunchedEffect(importResult) {
         importResult?.let {
             snackbarHostState.showSnackbar(it)
+            viewModel.clearImportResult()
         }
     }
 
@@ -140,7 +166,18 @@ fun ConversationListScreen(
                         )
                     }
                     IconButton(
-                        onClick = { viewModel.importSms() },
+                        onClick = {
+                            val readSms = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+                            val readContacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+                            if (readSms && readContacts) {
+                                viewModel.importSms()
+                            } else {
+                                val needed = mutableListOf<String>()
+                                if (!readSms) needed.add(Manifest.permission.READ_SMS)
+                                if (!readContacts) needed.add(Manifest.permission.READ_CONTACTS)
+                                importPermissionLauncher.launch(needed.toTypedArray())
+                            }
+                        },
                         enabled = !isImporting
                     ) {
                         if (isImporting) {
@@ -263,6 +300,21 @@ fun ConversationListScreen(
             }
         }
     }
+
+    if (showImportPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportPermissionDialog = false },
+            title = { Text("Permissions Required") },
+            text = {
+                Text("SMS and Contacts permissions are needed to import your existing messages. Please grant them in Settings > Apps > NexusSMS > Permissions.")
+            },
+            confirmButton = {
+                TextButton(onClick = { showImportPermissionDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -275,6 +327,7 @@ private fun SwipeableConversationItem(
     onPinClick: (() -> Unit)? = null,
     onUnpinClick: (() -> Unit)? = null
 ) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
@@ -283,7 +336,7 @@ private fun SwipeableConversationItem(
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
-                    onDeleteClick()
+                    showDeleteConfirm = true
                     false
                 }
                 else -> false
@@ -292,6 +345,16 @@ private fun SwipeableConversationItem(
     )
 
     val dismissDirection = dismissState.dismissDirection
+    val swipeProgress by animateFloatAsState(
+        targetValue = when {
+            dismissDirection == SwipeToDismissBoxValue.StartToEnd ->
+                dismissState.progress
+            dismissDirection == SwipeToDismissBoxValue.EndToStart ->
+                dismissState.progress
+            else -> 0f
+        },
+        label = "swipe_progress"
+    )
 
     SwipeToDismissBox(
         state = dismissState,
@@ -342,6 +405,31 @@ private fun SwipeableConversationItem(
             )
         }
     )
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteConfirm = false
+            },
+            title = { Text("Delete Conversation") },
+            text = {
+                Text("Delete all messages with ${conversation.displayName.ifBlank { conversation.participantPhoneNumbers }}?")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteClick()
+                    showDeleteConfirm = false
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
