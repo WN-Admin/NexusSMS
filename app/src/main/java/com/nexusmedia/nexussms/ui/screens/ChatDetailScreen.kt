@@ -72,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.nexusmedia.nexussms.ui.theme.LocalBubbleTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -471,7 +472,7 @@ fun ChatDetailScreen(
                     modifier = Modifier.size(40.dp),
                     shape = CircleShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (messageText.isNotEmpty()) MaterialTheme.colorScheme.primary
+                        containerColor = if (messageText.isNotEmpty()) LocalBubbleTheme.current.sentColor
                         else MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
@@ -531,6 +532,15 @@ fun MessageBubble(
     onReact: (String, String) -> Unit = { _, _ -> }
 ) {
     val isIncoming = message.senderPhoneNumber != "self"
+    val bubbleTheme = LocalBubbleTheme.current
+    val bubbleColor = if (isIncoming) bubbleTheme.receivedColor else bubbleTheme.sentColor
+    val textColor = if (isIncoming) bubbleTheme.receivedTextColor else bubbleTheme.sentTextColor
+    val cr = bubbleTheme.cornerRadius
+    val bubbleShape = if (isIncoming) {
+        RoundedCornerShape((cr / 4).dp.coerceAtLeast(2.dp), cr.dp, cr.dp, cr.dp)
+    } else {
+        RoundedCornerShape(cr.dp, (cr / 4).dp.coerceAtLeast(2.dp), cr.dp, cr.dp)
+    }
 
     Row(
         modifier = Modifier
@@ -563,21 +573,8 @@ fun MessageBubble(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = if (isIncoming) 4.dp else 16.dp,
-                            topEnd = if (isIncoming) 16.dp else 4.dp,
-                            bottomStart = 16.dp,
-                            bottomEnd = 16.dp
-                        )
-                    )
-                    .background(
-                        color = if (isIncoming) {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        }
-                    )
+                    .clip(bubbleShape)
+                    .background(color = bubbleColor)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongClick
@@ -587,11 +584,7 @@ fun MessageBubble(
                 Column {
                     Text(
                         text = message.content,
-                        color = if (isIncoming) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            Color.White
-                        },
+                        color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
                         lineHeight = 20.sp
                     )
@@ -609,11 +602,7 @@ fun MessageBubble(
                     ) {
                         Text(
                             text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(message.timestamp),
-                            color = if (isIncoming) {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            } else {
-                                Color.White.copy(alpha = 0.7f)
-                            },
+                            color = textColor.copy(alpha = 0.6f),
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 11.sp
                         )
@@ -629,8 +618,11 @@ fun MessageBubble(
                             if (statusIcon.isNotEmpty()) {
                                 Text(
                                     text = statusIcon,
-                                    color = if (message.status == "READ") Color(0xFF4FC3F7)
-                                    else Color.White.copy(alpha = 0.7f),
+                                    color = when (message.status) {
+                                        "READ" -> Color(0xFF4FC3F7)
+                                        "FAILED" -> MaterialTheme.colorScheme.error
+                                        else -> textColor.copy(alpha = 0.7f)
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontSize = 11.sp,
                                     textAlign = TextAlign.End

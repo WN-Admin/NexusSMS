@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nexusmedia.nexussms.data.models.Message
+import com.nexusmedia.nexussms.ui.theme.LocalBubbleTheme
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -46,25 +47,15 @@ fun MessageBubble(
     modifier: Modifier = Modifier
 ) {
     val isOutgoing = message.senderPhoneNumber == "self"
-    val bubbleColor = if (isOutgoing) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (isOutgoing) {
-        Color.White
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val timestampColor = if (isOutgoing) {
-        Color.White.copy(alpha = 0.7f)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-    }
+    val bubbleTheme = LocalBubbleTheme.current
+    val bubbleColor = if (isOutgoing) bubbleTheme.sentColor else bubbleTheme.receivedColor
+    val contentColor = if (isOutgoing) bubbleTheme.sentTextColor else bubbleTheme.receivedTextColor
+    val timestampColor = contentColor.copy(alpha = 0.6f)
+    val cr = bubbleTheme.cornerRadius
     val bubbleShape = if (isOutgoing) {
-        RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
+        RoundedCornerShape(cr.dp, (cr / 4).dp.coerceAtLeast(2.dp), cr.dp, cr.dp)
     } else {
-        RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp)
+        RoundedCornerShape((cr / 4).dp.coerceAtLeast(2.dp), cr.dp, cr.dp, cr.dp)
     }
 
     val reactionsMap = remember(message.reactions) {

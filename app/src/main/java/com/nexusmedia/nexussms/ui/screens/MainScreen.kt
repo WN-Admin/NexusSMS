@@ -106,7 +106,10 @@ fun MainScreen() {
                 SignaturesScreen()
             }
             composable("themes") {
-                ThemesScreen()
+                ThemesScreen(navController = navController)
+            }
+            composable("theme_creator") {
+                ThemeCreatorScreen(navController = navController)
             }
             composable("scheduled") {
                 ScheduledMessagesScreen()

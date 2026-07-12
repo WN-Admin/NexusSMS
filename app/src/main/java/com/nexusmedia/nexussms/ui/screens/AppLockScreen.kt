@@ -31,12 +31,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nexusmedia.nexussms.ui.viewmodels.AppLockViewModel
@@ -44,17 +46,20 @@ import com.nexusmedia.nexussms.ui.viewmodels.AppLockViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppLockScreen(
-    navController: NavController,
+    navController: NavController? = null,
+    onAuthenticated: (() -> Unit)? = null,
     viewModel: AppLockViewModel = hiltViewModel()
 ) {
     val pinInput by viewModel.pinInput.collectAsState()
     val error by viewModel.error.collectAsState()
     val biometricAvailable by viewModel.biometricAvailable.collectAsState()
     val isAuthenticated by viewModel.isAuthenticated.collectAsState()
+    val activity = LocalContext.current as? FragmentActivity
 
     LaunchedEffect(isAuthenticated) {
         if (isAuthenticated) {
-            navController.popBackStack()
+            onAuthenticated?.invoke()
+            navController?.popBackStack()
         }
     }
 
@@ -67,7 +72,7 @@ fun AppLockScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { navController?.popBackStack() }) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Back",
@@ -139,7 +144,9 @@ fun AppLockScreen(
             if (biometricAvailable) {
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(
-                    onClick = { viewModel.onBiometricAuthenticated() },
+                    onClick = {
+                        activity?.let { viewModel.verifyBiometric(it) }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(

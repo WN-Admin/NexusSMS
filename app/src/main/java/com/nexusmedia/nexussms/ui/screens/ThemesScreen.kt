@@ -1,7 +1,8 @@
 package com.nexusmedia.nexussms.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,18 +13,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,10 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
 import com.nexusmedia.nexussms.data.models.Theme
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.theme.ThemeManager
@@ -58,13 +64,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed class ThemeDialogState {
-    object Hidden : ThemeDialogState()
+    data object Hidden : ThemeDialogState()
     data class Delete(val theme: Theme) : ThemeDialogState()
 }
 
 @HiltViewModel
 class ThemesViewModel @Inject constructor(
     private val themeRepository: ThemeRepository,
+    private val themeManager: ThemeManager,
     private val themePreference: ThemePreference
 ) : ViewModel() {
 
@@ -77,8 +84,8 @@ class ThemesViewModel @Inject constructor(
     private val _customThemes = MutableStateFlow<List<Theme>>(emptyList())
     val customThemes: StateFlow<List<Theme>> = _customThemes.asStateFlow()
 
-    private val _currentThemeId = MutableStateFlow<String?>(null)
-    val currentThemeId: StateFlow<String?> = _currentThemeId.asStateFlow()
+    private val _currentThemeId = MutableStateFlow("")
+    val currentThemeId: StateFlow<String> = _currentThemeId.asStateFlow()
 
     private val _dialogState = MutableStateFlow<ThemeDialogState>(ThemeDialogState.Hidden)
     val dialogState: StateFlow<ThemeDialogState> = _dialogState.asStateFlow()
@@ -107,6 +114,7 @@ class ThemesViewModel @Inject constructor(
 
     fun applyTheme(theme: Theme) {
         themePreference.setTheme(theme)
+        themeManager.applyTheme(theme)
         _currentThemeId.value = theme.id
     }
 
@@ -125,28 +133,93 @@ class ThemesViewModel @Inject constructor(
         }
     }
 
+    fun createTheme(
+        name: String,
+        primaryColor: String,
+        secondaryColor: String,
+        bubbleColorSent: String,
+        bubbleColorReceived: String,
+        textColor: String,
+        backgroundColor: String,
+        surfaceColor: String,
+        textColorSecondary: String,
+        bubbleTextColorSent: String,
+        bubbleTextColorReceived: String,
+        bubbleStyle: String,
+        bubbleCornerRadius: Int,
+        bubbleElevation: Float,
+        isDarkMode: Boolean
+    ) {
+        viewModelScope.launch {
+            val theme = Theme(
+                name = name,
+                isCustom = true,
+                isDefault = false,
+                primaryColor = primaryColor,
+                secondaryColor = secondaryColor,
+                bubbleColorSent = bubbleColorSent,
+                bubbleColorReceived = bubbleColorReceived,
+                textColor = textColor,
+                backgroundColor = backgroundColor,
+                surfaceColor = surfaceColor,
+                textColorSecondary = textColorSecondary,
+                bubbleTextColorSent = bubbleTextColorSent,
+                bubbleTextColorReceived = bubbleTextColorReceived,
+                bubbleStyle = bubbleStyle,
+                bubbleCornerRadius = bubbleCornerRadius,
+                bubbleElevation = bubbleElevation,
+                isDarkMode = isDarkMode
+            )
+            themeRepository.insertTheme(theme)
+            applyTheme(theme)
+        }
+    }
+
     fun isThemeActive(theme: Theme): Boolean = _currentThemeId.value == theme.id
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemesScreen(
+    navController: NavController,
     viewModel: ThemesViewModel = hiltViewModel()
 ) {
     val builtInThemes by viewModel.builtInThemes.collectAsState()
     val customThemes by viewModel.customThemes.collectAsState()
     val dialogState by viewModel.dialogState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val currentThemeId by viewModel.currentThemeId.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Themes") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate("theme_creator") },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Create Theme",
+                    tint = Color.White
+                )
+            }
         }
     ) { paddingValues ->
         if (isLoading) {
@@ -156,63 +229,57 @@ fun ThemesScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Loading themes...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Loading themes...",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         } else {
-            LazyColumn(
+            val allDisplayThemes = builtInThemes + customThemes
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
-                    Text(
-                        text = "Built-in Themes",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(16.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                items(builtInThemes, key = { it.id }) { theme ->
-                    ThemeItem(
-                        theme = theme,
-                        isActive = viewModel.isThemeActive(theme),
-                        showDelete = false,
-                        onApply = { viewModel.applyTheme(theme) },
-                        onDelete = { viewModel.showDeleteDialog(theme) }
-                    )
+                if (builtInThemes.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        SectionHeader(title = "Built-in Themes")
+                    }
+                    items(builtInThemes, key = { it.id }) { theme ->
+                        ThemePreviewCard(
+                            theme = theme,
+                            isActive = theme.id == currentThemeId,
+                            isCustom = false,
+                            onApply = { viewModel.applyTheme(theme) },
+                            onLongPress = {},
+                            onDelete = {}
+                        )
+                    }
                 }
 
                 if (customThemes.isNotEmpty()) {
-                    item {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Custom Themes",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(16.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    item(span = { GridItemSpan(2) }) {
+                        SectionHeader(title = "Custom Themes")
                     }
                     items(customThemes, key = { it.id }) { theme ->
-                        ThemeItem(
+                        ThemePreviewCard(
                             theme = theme,
-                            isActive = viewModel.isThemeActive(theme),
-                            showDelete = true,
+                            isActive = theme.id == currentThemeId,
+                            isCustom = true,
                             onApply = { viewModel.applyTheme(theme) },
+                            onLongPress = { viewModel.showDeleteDialog(theme) },
                             onDelete = { viewModel.showDeleteDialog(theme) }
                         )
                     }
                 }
 
-                if (builtInThemes.isEmpty() && customThemes.isEmpty()) {
-                    item {
+                if (allDisplayThemes.isEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -227,7 +294,9 @@ fun ThemesScreen(
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item(span = { GridItemSpan(2) }) {
+                    Spacer(modifier = Modifier.height(80.dp))
+                }
             }
         }
     }
@@ -252,103 +321,193 @@ fun ThemesScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ThemeItem(
+private fun ThemePreviewCard(
     theme: Theme,
     isActive: Boolean,
-    showDelete: Boolean,
+    isCustom: Boolean,
     onApply: () -> Unit,
+    onLongPress: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable { onApply() },
+            .height(180.dp)
+            .combinedClickable(
+                onClick = onApply,
+                onLongClick = {
+                    if (isCustom) onLongPress()
+                }
+            ),
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer
             else MaterialTheme.colorScheme.surface
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isActive) 4.dp else 2.dp
+        )
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(10.dp)
         ) {
-            ColorPreview(theme = theme)
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(
-                modifier = Modifier.weight(1f)
+            ThemePreview(theme = theme)
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = theme.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                Text(
+                    text = theme.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isActive) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Active",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
                     )
-                    if (theme.isCustom) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Custom",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                if (isCustom && !isActive) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
-                Text(
-                    text = if (theme.isDarkMode) "Dark theme" else "Light theme",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
-            if (isActive) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Active theme",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            if (showDelete) {
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+
+            Text(
+                text = if (theme.isDarkMode) "Dark" else "Light",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
-private fun ColorPreview(theme: Theme) {
+fun ThemePreview(theme: Theme) {
+    val bgColor = themeManagerHexToColor(theme.backgroundColor)
+    val sentBubbleColor = themeManagerHexToColor(theme.bubbleColorSent)
+    val receivedBubbleColor = themeManagerHexToColor(theme.bubbleColorReceived)
+    val sentTextColor = themeManagerHexToColor(theme.bubbleTextColorSent)
+    val receivedTextColor = themeManagerHexToColor(theme.bubbleTextColorReceived)
+
+    val cornerRadius = when (theme.bubbleStyle) {
+        "SHARP" -> 2.dp
+        "SQUARE" -> 4.dp
+        "MODERN" -> 12.dp
+        else -> 16.dp
+    }
+
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor)
+            .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            ColorSwatch(color = Color(android.graphics.Color.parseColor(theme.primaryColor)))
-            ColorSwatch(color = Color(android.graphics.Color.parseColor(theme.secondaryColor)))
-            ColorSwatch(color = Color(android.graphics.Color.parseColor(theme.backgroundColor)))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            MessageBubble(
+                text = "Hey there!",
+                textColor = sentTextColor,
+                backgroundColor = sentBubbleColor,
+                cornerRadius = cornerRadius,
+                isOutgoing = true
+            )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            ColorSwatch(color = Color(android.graphics.Color.parseColor(theme.bubbleColorSent)))
-            ColorSwatch(color = Color(android.graphics.Color.parseColor(theme.bubbleColorReceived)))
-            ColorSwatch(color = Color(android.graphics.Color.parseColor(theme.textColor)))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start
+        ) {
+            MessageBubble(
+                text = "Hi!",
+                textColor = receivedTextColor,
+                backgroundColor = receivedBubbleColor,
+                cornerRadius = cornerRadius,
+                isOutgoing = false
+            )
         }
     }
 }
 
 @Composable
-private fun ColorSwatch(color: Color) {
-    Box(
+private fun MessageBubble(
+    text: String,
+    textColor: Color,
+    backgroundColor: Color,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    isOutgoing: Boolean
+) {
+    val shape = if (isOutgoing) {
+        RoundedCornerShape(
+            topStart = cornerRadius,
+            topEnd = cornerRadius,
+            bottomStart = cornerRadius,
+            bottomEnd = 2.dp
+        )
+    } else {
+        RoundedCornerShape(
+            topStart = cornerRadius,
+            topEnd = cornerRadius,
+            bottomStart = 2.dp,
+            bottomEnd = cornerRadius
+        )
+    }
+
+    Text(
+        text = text,
+        color = textColor,
+        style = MaterialTheme.typography.labelSmall,
         modifier = Modifier
-            .size(16.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(color)
+            .clip(shape)
+            .background(backgroundColor)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        maxLines = 1
     )
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp, horizontal = 4.dp),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun themeManagerHexToColor(hex: String): Color {
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (_: Exception) {
+        Color.Gray
+    }
 }
