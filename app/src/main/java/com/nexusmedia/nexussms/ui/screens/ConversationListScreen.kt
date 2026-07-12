@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -205,6 +206,13 @@ fun ConversationListScreen(
                         Icon(
                             Icons.Default.Search,
                             contentDescription = "Search",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(onClick = { viewModel.syncMatrix() }) {
+                        Icon(
+                            Icons.Default.CloudSync,
+                            contentDescription = "Sync Matrix",
                             tint = Color.White
                         )
                     }

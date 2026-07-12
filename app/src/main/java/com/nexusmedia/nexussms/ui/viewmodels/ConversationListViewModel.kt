@@ -8,6 +8,8 @@ import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.repository.ContactAvatarRepository
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.SmsImporter
+import com.nexusmedia.nexussms.features.matrix.MatrixAuthService
+import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,8 @@ class ConversationListViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val smsImporter: SmsImporter,
     private val contactAvatarRepository: ContactAvatarRepository,
+    private val matrixAuthService: MatrixAuthService,
+    private val matrixSyncService: MatrixSyncService,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -198,6 +202,29 @@ class ConversationListViewModel @Inject constructor(
 
     fun clearImportResult() {
         _importResult.value = null
+    }
+
+    fun syncMatrix() {
+        viewModelScope.launch {
+            _isImporting.value = true
+            try {
+                if (!matrixAuthService.isLoggedIn()) {
+                    _importResult.value = "Matrix not connected"
+                    return@launch
+                }
+                val result = matrixSyncService.incrementalSync()
+                if (result.error != null) {
+                    _importResult.value = result.error
+                } else {
+                    _importResult.value = "Matrix synced: ${result.messagesImported} new messages"
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Matrix sync failed")
+                _importResult.value = "Matrix sync failed: ${e.message}"
+            } finally {
+                _isImporting.value = false
+            }
+        }
     }
 
     fun resyncSms() {
