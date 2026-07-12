@@ -109,7 +109,7 @@ class ChatViewModel @Inject constructor(
             .launchIn(viewModelScope)
 
         messagesJob = messageRepository.getConversationMessages(conversationId)
-            .onEach { msgs -> _messages.value = msgs.reversed() }
+            .onEach { msgs -> _messages.value = msgs }
             .launchIn(viewModelScope)
     }
 
