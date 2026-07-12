@@ -35,6 +35,21 @@
     <!-- Background Services -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <queries>
+        <package android:name="com.discord" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="com.facebook.mlite" />
+        <package android:name="com.viber.voip" />
+        <package android:name="org.thoughtcrime.securesms" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="im.vector.app" />
+        <package android:name="im.vector.app.x" />
+        <package android:name="com.Slack" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

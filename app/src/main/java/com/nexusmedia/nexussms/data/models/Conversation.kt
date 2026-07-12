@@ -46,5 +46,8 @@ data class Conversation(
     val autoReplyMessage: String? = null,
     
     val encryptionEnabled: Boolean = false,
-    val encryptionType: String? = null // E2EE, TRANSPORT, NONE
+    val encryptionType: String? = null, // E2EE, TRANSPORT, NONE
+
+    val sourcePlatform: String = "SMS", // SMS, RCS, TELEGRAM, DISCORD, WHATSAPP, SIGNAL, SLACK, etc.
+    val sourceAccountId: String? = null  // FK to social_accounts.id for platform conversations
 )

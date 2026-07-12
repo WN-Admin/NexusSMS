@@ -2,15 +2,18 @@ package com.nexusmedia.nexussms.data.database
 
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-/**
- * Placeholder for Room migrations.
- *
- * Phase 1A requires migrations infrastructure; actual migrations can be added
- * when the schema evolves.
- */
 internal object NexusSMSDatabaseMigrations {
-    val migrations: List<Migration> = emptyList()
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN sourcePlatform TEXT NOT NULL DEFAULT 'SMS'")
+            db.execSQL("ALTER TABLE conversations ADD COLUMN sourceAccountId TEXT DEFAULT NULL")
+            db.execSQL("ALTER TABLE messages ADD COLUMN sourcePlatform TEXT NOT NULL DEFAULT 'SMS'")
+        }
+    }
+
+    val migrations: List<Migration> = listOf(MIGRATION_1_2)
 }
 
 /**

@@ -35,9 +35,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.Tab
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +67,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.ui.viewmodels.ConversationListViewModel
+import com.nexusmedia.nexussms.ui.viewmodels.SocialPlatforms
 
 private val AvatarColors = listOf(
     Color(0xFF5C6BC0),
@@ -86,6 +89,35 @@ private fun avatarGradient(name: String): Brush {
     val c1 = AvatarColors[((hash % AvatarColors.size) + AvatarColors.size) % AvatarColors.size]
     val c2 = AvatarColors[((hash / AvatarColors.size % AvatarColors.size) + AvatarColors.size) % AvatarColors.size]
     return Brush.verticalGradient(listOf(c1, c2))
+}
+
+private val platformColors = mapOf(
+    "SMS" to Color(0xFF4CAF50),
+    "RCS" to Color(0xFF2196F3),
+    "TELEGRAM" to Color(0xFF0088CC),
+    "DISCORD" to Color(0xFF5865F2),
+    "WHATSAPP" to Color(0xFF25D366),
+    "SIGNAL" to Color(0xFF3A76F0),
+    "SLACK" to Color(0xFF4A154B),
+    "MATRIX" to Color(0xFF0DBD8B),
+    "MESSENGER" to Color(0xFF0084FF),
+    "VIBER" to Color(0xFF7360F2),
+)
+
+private fun platformDisplayName(platform: String): String {
+    return when (platform) {
+        "SMS" -> "SMS"
+        "RCS" -> "RCS"
+        "DISCORD" -> "Discord"
+        "TELEGRAM" -> "Telegram"
+        "WHATSAPP" -> "WhatsApp"
+        "SIGNAL" -> "Signal"
+        "SLACK" -> "Slack"
+        "MATRIX" -> "Matrix"
+        "MESSENGER" -> "Messenger"
+        "VIBER" -> "Viber"
+        else -> platform
+    }
 }
 
 private fun formatTimestamp(timestamp: Long): String {
@@ -123,6 +155,8 @@ fun ConversationListScreen(
     val isImporting by viewModel.isImporting.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
     val needsPermission by viewModel.needsPermission.collectAsState()
+    val selectedPlatform by viewModel.selectedPlatform.collectAsState()
+    val availablePlatforms by viewModel.availablePlatforms.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -183,95 +217,115 @@ fun ConversationListScreen(
             }
         }
     ) { paddingValues ->
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "Loading conversations...",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        val filteredPinned = viewModel.getFilteredPinnedConversations()
+        val filteredAll = viewModel.getFilteredConversations().filter { !it.isPinned }
+        val tabPlatforms = listOf("ALL") + availablePlatforms.distinct()
+
+        Column(modifier = Modifier.padding(paddingValues)) {
+            if (tabPlatforms.size > 1) {
+                ScrollableTabRow(
+                    selectedTabIndex = tabPlatforms.indexOf(selectedPlatform).coerceAtLeast(0),
+                    edgePadding = 8.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    divider = {}
+                ) {
+                    tabPlatforms.forEach { platform ->
+                        Tab(
+                            selected = selectedPlatform == platform,
+                            onClick = { viewModel.setPlatform(platform) },
+                            text = {
+                                Text(
+                                    text = if (platform == "ALL") "All" else platformDisplayName(platform),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        )
+                    }
+                }
             }
-        } else if (conversationList.isEmpty() && pinnedConversations.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        "No conversations yet",
-                        style = MaterialTheme.typography.titleMedium,
+                        "Loading conversations...",
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Tap + to start a new one",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                if (pinnedConversations.isNotEmpty()) {
-                    item {
+            } else if (conversationList.isEmpty() && pinnedConversations.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "PINNED",
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
+                            "No conversations yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Tap + to start a new one",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
-                    items(
-                        items = pinnedConversations,
-                        key = { it.id }
-                    ) { conversation ->
-                        SwipeableConversationItem(
-                            conversation = conversation,
-                            onClick = { onConversationClick(conversation.id) },
-                            onDeleteClick = { viewModel.deleteConversation(conversation.id) },
-                            showPinAction = false,
-                            onUnpinClick = { viewModel.unpinConversation(conversation.id) }
-                        )
-                    }
-                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    if (filteredPinned.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "PINNED",
+                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        items(
+                            items = filteredPinned,
+                            key = { it.id }
+                        ) { conversation ->
+                            SwipeableConversationItem(
+                                conversation = conversation,
+                                onClick = { onConversationClick(conversation.id) },
+                                onDeleteClick = { viewModel.deleteConversation(conversation.id) },
+                                showPinAction = false,
+                                onUnpinClick = { viewModel.unpinConversation(conversation.id) }
+                            )
+                        }
+                        item { Spacer(modifier = Modifier.height(8.dp)) }
+                    }
 
-                val unpinned = conversationList.filter { !it.isPinned }
-                if (unpinned.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "RECENT",
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                    }
-                    items(
-                        items = unpinned,
-                        key = { it.id }
-                    ) { conversation ->
-                        SwipeableConversationItem(
-                            conversation = conversation,
-                            onClick = { onConversationClick(conversation.id) },
-                            onDeleteClick = { viewModel.deleteConversation(conversation.id) },
-                            showPinAction = true,
-                            onPinClick = { viewModel.pinConversation(conversation.id) }
-                        )
+                    if (filteredAll.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "RECENT",
+                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        items(
+                            items = filteredAll,
+                            key = { it.id }
+                        ) { conversation ->
+                            SwipeableConversationItem(
+                                conversation = conversation,
+                                onClick = { onConversationClick(conversation.id) },
+                                onDeleteClick = { viewModel.deleteConversation(conversation.id) },
+                                showPinAction = true,
+                                onPinClick = { viewModel.pinConversation(conversation.id) }
+                            )
+                        }
                     }
                 }
             }
@@ -433,20 +487,38 @@ private fun ConversationItemRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(gradient),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = avatarChar,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        val badgeColor = platformColors[conversation.sourcePlatform] ?: Color.Gray
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .align(Alignment.BottomEnd)
+                .size(16.dp)
                 .clip(CircleShape)
-                .background(gradient),
+                .background(badgeColor)
+                .padding(2.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = avatarChar,
+                text = conversation.sourcePlatform.first().toString(),
                 color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold
             )
         }
+    }
 
         Spacer(modifier = Modifier.width(14.dp))
 

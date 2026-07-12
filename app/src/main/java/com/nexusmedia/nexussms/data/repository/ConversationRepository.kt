@@ -30,6 +30,14 @@ class ConversationRepository @Inject constructor(
         return conversationDao.getAllConversations()
     }
 
+    fun getConversationsByPlatform(platform: String): Flow<List<Conversation>> {
+        return conversationDao.getConversationsByPlatform(platform)
+    }
+
+    fun getActivePlatforms(): Flow<List<String>> {
+        return conversationDao.getActivePlatforms()
+    }
+
     fun getArchivedConversations(): Flow<List<Conversation>> {
         return conversationDao.getArchivedConversations()
     }

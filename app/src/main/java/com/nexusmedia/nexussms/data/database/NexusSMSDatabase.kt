@@ -31,7 +31,7 @@ import com.nexusmedia.nexussms.data.converters.JsonConverter
         BackupMetadata::class,
         AppSecuritySettings::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(DateConverter::class, JsonConverter::class)
