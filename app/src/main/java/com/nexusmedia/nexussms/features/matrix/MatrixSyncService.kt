@@ -103,6 +103,7 @@ class MatrixSyncService @Inject constructor(
                     existing.id
                 } else {
                     conversationRepository.insertConversation(conversation)
+                    conversation.id
                 }
 
                 val events = roomSync.timeline?.events ?: emptyList()

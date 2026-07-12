@@ -21,6 +21,8 @@ class ConversationListViewModelTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val smsImporter = mockk<com.nexusmedia.nexussms.data.repository.SmsImporter>(relaxed = true)
     private val contactAvatarRepository = mockk<com.nexusmedia.nexussms.data.repository.ContactAvatarRepository>(relaxed = true)
+    private val matrixAuthService = mockk<com.nexusmedia.nexussms.features.matrix.MatrixAuthService>(relaxed = true)
+    private val matrixSyncService = mockk<com.nexusmedia.nexussms.features.matrix.MatrixSyncService>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var viewModel: ConversationListViewModel
@@ -57,7 +59,7 @@ class ConversationListViewModelTest {
         every { context.getSharedPreferences(any(), any()) } returns mockk(relaxed = true)
         every { contactAvatarRepository.getAll() } returns flowOf(emptyList())
 
-        viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, context)
+        viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, matrixAuthService, matrixSyncService, context)
     }
 
     @After
