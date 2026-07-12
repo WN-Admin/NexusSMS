@@ -35,9 +35,17 @@ class MessageRepository @Inject constructor(
     ): Flow<List<Message>> = messageDao.getMessagesByStatus(conversationId, status)
 
     fun getConversationMessages(conversationId: String): Flow<List<Message>> =
-        messageDao.getMessagesByConversation(conversationId, 100, 0)
+        messageDao.getAllMessagesByConversation(conversationId)
 
     fun getPendingScheduledMessages(): Flow<List<Message>> = messageDao.getPendingScheduledMessages()
 
     suspend fun hardDeleteMessage(messageId: String) = messageDao.hardDeleteMessage(messageId)
+
+    suspend fun insertImportedMessage(message: Message): Long = messageDao.insertImportedMessage(message)
+
+    suspend fun insertImportedMessages(messages: List<Message>) = messageDao.insertImportedMessages(messages)
+
+    suspend fun getImportedSourceSmsIds(conversationId: String): List<Long> = messageDao.getImportedSourceSmsIds(conversationId)
+
+    suspend fun deleteMessagesByIds(messageIds: List<String>) = messageDao.deleteMessagesByIds(messageIds)
 }

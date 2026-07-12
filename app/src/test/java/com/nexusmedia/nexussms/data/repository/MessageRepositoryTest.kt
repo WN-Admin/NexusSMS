@@ -80,12 +80,12 @@ class MessageRepositoryTest {
                 status = "SENT"
             )
         )
-        coEvery { messageDao.getMessagesByConversation("c1", 100, 0) } returns flowOf(messages)
+        coEvery { messageDao.getAllMessagesByConversation("c1") } returns flowOf(messages)
 
         val result = repository.getConversationMessages("c1")
 
         assertEquals(2, result.first().size)
-        coVerify { messageDao.getMessagesByConversation("c1", 100, 0) }
+        coVerify { messageDao.getAllMessagesByConversation("c1") }
     }
 
     @Test
