@@ -8,6 +8,7 @@ import com.nexusmedia.nexussms.data.repository.SignatureRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.theme.ThemeManager
+import com.nexusmedia.nexussms.features.theme.ThemePreference
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +23,8 @@ class SettingsViewModel @Inject constructor(
     private val themeRepository: ThemeRepository,
     private val signatureRepository: SignatureRepository,
     private val socialAccountRepository: SocialAccountRepository,
-    private val themeManager: ThemeManager
+    private val themeManager: ThemeManager,
+    private val themePreference: ThemePreference
 ) : ViewModel() {
 
     private val _themes = MutableStateFlow<List<Theme>>(emptyList())
@@ -38,11 +40,8 @@ class SettingsViewModel @Inject constructor(
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
     init {
-        // One-time seeding of built-in themes if DB is empty.
-        viewModelScope.launch {
-            themeManager.initializeDefaultThemes()
-        }
-        // Continuous observers — Room emits on every change automatically.
+        _isDarkMode.value = themeManager.isDarkMode()
+
         themeRepository.getAllThemes()
             .onEach { _themes.value = it }
             .launchIn(viewModelScope)
@@ -55,6 +54,8 @@ class SettingsViewModel @Inject constructor(
     fun setCurrentTheme(theme: Theme) {
         _currentTheme.value = theme
         _isDarkMode.value = theme.isDarkMode
+        themePreference.setTheme(theme)
+        themeManager.applyTheme(theme)
     }
 
     fun createCustomTheme(
@@ -117,6 +118,7 @@ class SettingsViewModel @Inject constructor(
 
     fun toggleDarkMode(isDark: Boolean) {
         _isDarkMode.value = isDark
+        themeManager.setDarkMode(isDark)
     }
 
     fun getConnectedSocialAccounts() = socialAccountRepository.getConnectedAccounts()

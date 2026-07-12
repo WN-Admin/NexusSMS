@@ -130,12 +130,15 @@ class ConversationListViewModel @Inject constructor(
             _isImporting.value = true
             try {
                 val result = smsImporter.importAllSms()
-                _importResult.value = if (result.messagesImported > 0) {
-                    "Imported ${result.messagesImported} messages from ${result.conversationsImported} conversations"
+                if (result.error != null) {
+                    _importResult.value = result.error
+                } else if (result.messagesImported > 0) {
+                    prefs.edit().putBoolean("sms_import_done", true).apply()
+                    _importResult.value = "Imported ${result.messagesImported} messages from ${result.conversationsImported} conversations"
                 } else {
-                    "No SMS messages found to import"
+                    prefs.edit().putBoolean("sms_import_done", true).apply()
+                    _importResult.value = "No SMS messages found to import"
                 }
-                prefs.edit().putBoolean("sms_import_done", true).apply()
             } catch (e: Exception) {
                 Timber.e(e, "Import failed")
                 _importResult.value = "Import failed: ${e.message}"

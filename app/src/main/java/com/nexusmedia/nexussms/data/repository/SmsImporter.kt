@@ -31,12 +31,12 @@ class SmsImporter @Inject constructor(
             )
         } catch (e: SecurityException) {
             Timber.e(e, "Permission denied querying SMS")
-            return ImportResult(0, 0)
+            return ImportResult(0, 0, error = "SMS permission denied")
         }
 
         if (cursor == null) {
             Timber.w("SMS cursor is null - no messages or permission denied")
-            return ImportResult(0, 0)
+            return ImportResult(0, 0, error = "Unable to access SMS messages")
         }
 
         Timber.d("SMS cursor count: ${cursor.count}")
@@ -51,7 +51,7 @@ class SmsImporter @Inject constructor(
 
             if (addressIndex < 0 || bodyIndex < 0 || dateIndex < 0 || typeIndex < 0) {
                 Timber.e("SMS column index error: address=$addressIndex, body=$bodyIndex, date=$dateIndex, type=$typeIndex")
-                return ImportResult(0, 0)
+                return ImportResult(0, 0, error = "SMS database schema error")
             }
 
             while (it.moveToNext()) {
@@ -146,5 +146,5 @@ class SmsImporter @Inject constructor(
         return phoneNumber
     }
 
-    data class ImportResult(val messagesImported: Int, val conversationsImported: Int)
+    data class ImportResult(val messagesImported: Int, val conversationsImported: Int, val error: String? = null)
 }

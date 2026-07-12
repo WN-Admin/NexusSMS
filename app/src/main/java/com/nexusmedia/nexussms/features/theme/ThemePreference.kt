@@ -18,18 +18,6 @@ class ThemePreference @Inject constructor(
     val currentThemeId: StateFlow<String> = _currentThemeId.asStateFlow()
 
     fun setTheme(theme: Theme) {
-        prefs.edit().apply {
-            putString("current_theme_id", theme.id)
-            putString("primary_color", theme.primaryColor)
-            putString("secondary_color", theme.secondaryColor)
-            putString("background_color", theme.backgroundColor)
-            putString("surface_color", theme.surfaceColor)
-            putString("error_color", theme.errorColor)
-            putString("text_color", theme.textColor)
-            putString("text_color_secondary", theme.textColorSecondary)
-            putBoolean("is_dark_mode", theme.isDarkMode)
-            apply()
-        }
         _currentThemeId.value = theme.id
     }
 }

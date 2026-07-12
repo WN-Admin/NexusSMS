@@ -143,10 +143,7 @@ fun ConversationListScreen(
         if (readSms && readContacts) {
             viewModel.checkAndAutoImport()
         } else {
-            val needed = mutableListOf<String>()
-            if (!readSms) needed.add(Manifest.permission.READ_SMS)
-            if (!readContacts) needed.add(Manifest.permission.READ_CONTACTS)
-            importPermissionLauncher.launch(needed.toTypedArray())
+            viewModel.setNeedsPermission(true)
         }
     }
 
@@ -284,13 +281,28 @@ fun ConversationListScreen(
     if (needsPermission) {
         AlertDialog(
             onDismissRequest = { viewModel.setNeedsPermission(false) },
-            title = { Text("Permissions Required") },
+            title = { Text("Import Messages") },
             text = {
-                Text("SMS and Contacts permissions are needed to import your existing messages and show contact names. Please grant them in Settings > Apps > NexusSMS > Permissions.")
+                Text("SMS and Contacts permissions are needed to import your existing messages and show contact names.")
             },
             confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setNeedsPermission(false)
+                    val needed = mutableListOf<String>()
+                    val readSms = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED
+                    val readContacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
+                    if (readSms) needed.add(Manifest.permission.READ_SMS)
+                    if (readContacts) needed.add(Manifest.permission.READ_CONTACTS)
+                    if (needed.isNotEmpty()) {
+                        importPermissionLauncher.launch(needed.toTypedArray())
+                    }
+                }) {
+                    Text("Grant Permissions")
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { viewModel.setNeedsPermission(false) }) {
-                    Text("OK")
+                    Text("Later")
                 }
             }
         )

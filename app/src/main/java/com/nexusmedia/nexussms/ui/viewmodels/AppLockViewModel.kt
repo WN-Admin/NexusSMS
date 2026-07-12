@@ -2,10 +2,12 @@ package com.nexusmedia.nexussms.ui.viewmodels
 
 import android.content.Context
 import androidx.biometric.BiometricManager
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.database.AppSecuritySettingsDao
 import com.nexusmedia.nexussms.data.models.AppSecuritySettings
+import com.nexusmedia.nexussms.features.security.BiometricAuthManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,12 +16,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
+import java.util.Base64
 import javax.inject.Inject
 
 @HiltViewModel
 class AppLockViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val appSecuritySettingsDao: AppSecuritySettingsDao
+    private val appSecuritySettingsDao: AppSecuritySettingsDao,
+    private val biometricAuthManager: BiometricAuthManager
 ) : ViewModel() {
 
     private val _isLocked = MutableStateFlow(true)
@@ -70,7 +75,8 @@ class AppLockViewModel @Inject constructor(
 
     fun verifyPin(pin: String) {
         val savedValue = settings?.appLockValue
-        if (savedValue == null || pin == savedValue) {
+        val hashedPin = hashPin(pin)
+        if (savedValue == null || hashedPin == savedValue) {
             _isAuthenticated.value = true
             _isLocked.value = false
             _error.value = null
@@ -82,6 +88,26 @@ class AppLockViewModel @Inject constructor(
         } else {
             _error.value = "Incorrect PIN"
             _pinInput.value = ""
+        }
+    }
+
+    fun verifyBiometric(activity: FragmentActivity) {
+        biometricAuthManager.showBiometricPrompt(
+            activity = activity,
+            title = "Unlock NexusSMS",
+            subtitle = "Authenticate to continue",
+            onSuccess = { onBiometricAuthenticated() },
+            onError = { _error.value = it }
+        )
+    }
+
+    private fun hashPin(pin: String): String {
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(pin.toByteArray(Charsets.UTF_8))
+            Base64.getEncoder().encodeToString(hash)
+        } catch (_: Exception) {
+            pin
         }
     }
 

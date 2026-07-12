@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DarkMode
@@ -121,21 +120,7 @@ fun SettingsScreen(
             }
 
             item {
-                Text(
-                    text = "Themes",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            items(themes) { theme ->
-                ThemeItem(
-                    themeName = theme.name,
-                    themeColor = theme.primaryColor,
-                    isCustom = theme.isCustom,
-                    onClick = { viewModel.setCurrentTheme(theme) }
-                )
+                SettingsItem(title = "Themes", subtitle = "Browse & create themes") { navController.navigate("themes") }
             }
 
             item {
@@ -282,46 +267,6 @@ fun DarkModeToggle(isDarkMode: Boolean, onToggle: (Boolean) -> Unit) {
             )
         }
         Switch(checked = isDarkMode, onCheckedChange = { onToggle(it) })
-    }
-    HorizontalDivider()
-}
-
-@Composable
-fun ThemeItem(
-    themeName: String,
-    themeColor: String,
-    isCustom: Boolean = false,
-    onClick: () -> Unit = {}
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(
-                    color = try {
-                        Color(android.graphics.Color.parseColor(themeColor))
-                    } catch (e: Exception) {
-                        MaterialTheme.colorScheme.primary
-                    }
-                )
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(themeName, style = MaterialTheme.typography.bodyMedium)
-            if (isCustom) {
-                Text(
-                    "Custom",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
     }
     HorizontalDivider()
 }

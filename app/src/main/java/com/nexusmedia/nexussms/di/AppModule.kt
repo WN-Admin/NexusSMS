@@ -20,7 +20,6 @@ import com.nexusmedia.nexussms.features.security.SessionManager
 import com.nexusmedia.nexussms.features.backup.GoogleDriveBackupService
 import com.nexusmedia.nexussms.features.backup.GoogleDriveClient
 import com.nexusmedia.nexussms.security.EncryptionManager
-import com.nexusmedia.nexussms.features.theme.ThemeManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -103,10 +102,7 @@ object AppModule {
 
     // --- Features ---
 
-    @Provides
-    @Singleton
-    fun provideThemeManager(themeRepository: ThemeRepository): ThemeManager =
-        ThemeManager(themeRepository)
+    // ThemeManager uses @Inject constructor, resolved by Hilt automatically
 
     // --- Security ---
 
