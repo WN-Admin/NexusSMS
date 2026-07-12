@@ -109,7 +109,7 @@ class MatrixAuthService @Inject constructor(
 
     fun getDeviceId(): String? = prefs.getString("device_id", null)
 
-    private fun saveAuth(homeserver: String, userId: String, accessToken: String, deviceId: String?) {
+    private suspend fun saveAuth(homeserver: String, userId: String, accessToken: String, deviceId: String?) {
         prefs.edit()
             .putString("homeserver", homeserver)
             .putString("user_id", userId)
