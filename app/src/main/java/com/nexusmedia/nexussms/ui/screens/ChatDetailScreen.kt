@@ -5,11 +5,16 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.Intent
 import android.location.LocationManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,6 +45,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -61,6 +67,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,7 +77,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import com.nexusmedia.nexussms.ui.theme.LocalBubbleTheme
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +90,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.ui.components.EmojiPicker
 import com.nexusmedia.nexussms.ui.components.NexusAvatar
@@ -103,6 +115,7 @@ fun ChatDetailScreen(
     val selectedMessageType by viewModel.selectedMessageType.collectAsState()
     val shortcutSuggestions by viewModel.shortcutSuggestions.collectAsState()
     val contactAvatarUri by viewModel.contactAvatarUri.collectAsState()
+    val conversationBubbleTheme by viewModel.conversationBubbleTheme.collectAsState()
 
     val context = LocalContext.current
     var showEmojiPicker by remember { mutableStateOf(false) }
@@ -111,6 +124,7 @@ fun ChatDetailScreen(
     var reactingMessageId by remember { mutableStateOf<String?>(null) }
     var showLocationPermissionDenied by remember { mutableStateOf(false) }
     var showAttachments by remember { mutableStateOf(false) }
+    var showWallpaperPicker by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -214,36 +228,77 @@ fun ChatDetailScreen(
             )
         }
     ) { paddingValues ->
-        Column(
+        val effectiveBubbleTheme = conversationBubbleTheme ?: LocalBubbleTheme.current
+        CompositionLocalProvider(LocalBubbleTheme provides effectiveBubbleTheme) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                state = listState,
-                reverseLayout = true
-            ) {
-                items(messages) { message ->
-                    val avatarUri = if (message.senderPhoneNumber != "self") {
-                        val normalized = message.senderPhoneNumber.replace(Regex("[^+\\d]"), "")
-                        contactAvatarUri
-                    } else null
-                    MessageBubble(
-                        message = message,
-                        onLongClick = { reactingMessageId = message.id },
-                        reactingMessageId = reactingMessageId,
-                        onReact = { messageId, emoji ->
-                            viewModel.addReaction(messageId, emoji)
-                            reactingMessageId = null
-                        },
-                        avatarPhotoUri = if (message.senderPhoneNumber != "self") avatarUri else null
-                    )
-                }
+            val wallpaperUrl = conversation?.wallpaperUrl
+            val gradientColors = when (wallpaperUrl) {
+                "nexussms://gradient/sunset" -> listOf(Color(0xFFFF6B35), Color(0xFFFFD166))
+                "nexussms://gradient/ocean" -> listOf(Color(0xFF0077B6), Color(0xFF90E0EF))
+                "nexussms://gradient/forest" -> listOf(Color(0xFF2D6A4F), Color(0xFF52B788))
+                "nexussms://gradient/night" -> listOf(Color(0xFF10002B), Color(0xFF3C096C))
+                "nexussms://gradient/lavender" -> listOf(Color(0xFF7B2CBF), Color(0xFFC77DFF))
+                "nexussms://gradient/coral" -> listOf(Color(0xFFFF006E), Color(0xFFFFBE0B))
+                else -> null
             }
+            if (gradientColors != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(gradientColors))
+                )
+            } else if (!wallpaperUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(Uri.parse(wallpaperUrl))
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.25f))
+                )
+            }
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    state = listState,
+                    reverseLayout = true
+                ) {
+                    items(messages, key = { it.id }) { message ->
+                        val avatarUri = if (message.senderPhoneNumber != "self") {
+                            val normalized = message.senderPhoneNumber.replace(Regex("[^+\\d]"), "")
+                            contactAvatarUri
+                        } else null
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 4 }
+                        ) {
+                            ChatMessageBubble(
+                                message = message,
+                                onLongClick = { reactingMessageId = message.id },
+                                reactingMessageId = reactingMessageId,
+                                onReact = { messageId, emoji ->
+                                    viewModel.addReaction(messageId, emoji)
+                                    reactingMessageId = null
+                                },
+                                avatarPhotoUri = if (message.senderPhoneNumber != "self") avatarUri else null
+                            )
+                        }
+                    }
+                }
 
             if (shortcutSuggestions.isNotEmpty()) {
                 ShortcutSuggestionsBar(
@@ -346,6 +401,20 @@ fun ChatDetailScreen(
                 )
             }
 
+            if (showWallpaperPicker) {
+                WallpaperPickerDialog(
+                    onWallpaperSelected = { url ->
+                        viewModel.setWallpaper(url)
+                        showWallpaperPicker = false
+                    },
+                    onClearWallpaper = {
+                        viewModel.setWallpaper(null)
+                        showWallpaperPicker = false
+                    },
+                    onDismiss = { showWallpaperPicker = false }
+                )
+            }
+
             if (showAttachments && messageText.isEmpty()) {
                 Row(
                     modifier = Modifier
@@ -392,6 +461,11 @@ fun ChatDetailScreen(
                                 locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                             }
                         }
+                    )
+                    AttachmentButton(
+                        icon = Icons.Default.Wallpaper,
+                        label = "Wallpaper",
+                        onClick = { showWallpaperPicker = true }
                     )
                 }
             }
@@ -500,11 +574,13 @@ fun ChatDetailScreen(
                         tint = if (messageText.isNotEmpty()) Color.White
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-        }
-    }
-}
+                } // FilledIconButton
+            } // Row
+        } // Column
+        } // Box
+    } // CompositionLocalProvider
+    } // Scaffold content
+} // ChatDetailScreen
 
 @Composable
 private fun AttachmentButton(
@@ -542,7 +618,7 @@ private fun AttachmentButton(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MessageBubble(
+private fun ChatMessageBubble(
     message: Message,
     onLongClick: () -> Unit = {},
     reactingMessageId: String? = null,
@@ -582,6 +658,7 @@ fun MessageBubble(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .shadow(elevation = bubbleTheme.elevation.dp, shape = bubbleShape, ambientColor = Color.Black.copy(alpha = 0.15f))
                     .clip(bubbleShape)
                     .background(color = bubbleColor)
                     .combinedClickable(
@@ -794,6 +871,85 @@ private fun StickerPicker(
             }
         },
         confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun WallpaperPickerDialog(
+    onWallpaperSelected: (String) -> Unit,
+    onClearWallpaper: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val builtInWallpapers = listOf(
+        "Gradient: Sunset" to "nexussms://gradient/sunset",
+        "Gradient: Ocean" to "nexussms://gradient/ocean",
+        "Gradient: Forest" to "nexussms://gradient/forest",
+        "Gradient: Night" to "nexussms://gradient/night",
+        "Gradient: Lavender" to "nexussms://gradient/lavender",
+        "Gradient: Coral" to "nexussms://gradient/coral"
+    )
+
+    val gradientColors = mapOf(
+        "nexussms://gradient/sunset" to listOf(Color(0xFFFF6B35), Color(0xFFFF8C61), Color(0xFFFFD166)),
+        "nexussms://gradient/ocean" to listOf(Color(0xFF0077B6), Color(0xFF00B4D8), Color(0xFF90E0EF)),
+        "nexussms://gradient/forest" to listOf(Color(0xFF2D6A4F), Color(0xFF40916C), Color(0xFF52B788)),
+        "nexussms://gradient/night" to listOf(Color(0xFF10002B), Color(0xFF240046), Color(0xFF3C096C)),
+        "nexussms://gradient/lavender" to listOf(Color(0xFF7B2CBF), Color(0xFF9D4EDD), Color(0xFFC77DFF)),
+        "nexussms://gradient/coral" to listOf(Color(0xFFFF006E), Color(0xFFFF5A5F), Color(0xFFFFBE0B))
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Chat Wallpaper") },
+        text = {
+            Column {
+                Text(
+                    "Select a wallpaper for this conversation",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyColumn {
+                    items(builtInWallpapers.size) { index ->
+                        val (name, url) = builtInWallpapers[index]
+                        val colors = gradientColors[url] ?: listOf(Color.Gray, Color.DarkGray)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable { onWallpaperSelected(url) },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(60.dp)
+                                    .background(Brush.horizontalGradient(colors)),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Text(
+                                    text = name,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onClearWallpaper) {
+                Text("Clear Wallpaper", color = MaterialTheme.colorScheme.error)
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
