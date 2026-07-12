@@ -20,7 +20,20 @@ internal object NexusSMSDatabaseMigrations {
         }
     }
 
-    val migrations: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS contact_avatars (
+                    normalized_phone TEXT NOT NULL PRIMARY KEY,
+                    photo_uri TEXT DEFAULT NULL,
+                    display_name TEXT DEFAULT NULL,
+                    updated_at INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+        }
+    }
+
+    val migrations: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }
 
 /**

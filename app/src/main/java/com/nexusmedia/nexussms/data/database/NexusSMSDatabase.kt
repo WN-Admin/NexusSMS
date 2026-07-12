@@ -15,6 +15,7 @@ import com.nexusmedia.nexussms.data.models.SocialAccount
 import com.nexusmedia.nexussms.data.models.Reaction
 import com.nexusmedia.nexussms.data.models.BackupMetadata
 import com.nexusmedia.nexussms.data.models.AppSecuritySettings
+import com.nexusmedia.nexussms.data.models.ContactAvatar
 import com.nexusmedia.nexussms.data.converters.DateConverter
 import com.nexusmedia.nexussms.data.converters.JsonConverter
 
@@ -29,9 +30,10 @@ import com.nexusmedia.nexussms.data.converters.JsonConverter
         SocialAccount::class,
         Reaction::class,
         BackupMetadata::class,
-        AppSecuritySettings::class
+        AppSecuritySettings::class,
+        ContactAvatar::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(DateConverter::class, JsonConverter::class)
@@ -46,6 +48,7 @@ abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun reactionDao(): ReactionDao
     abstract fun backupMetadataDao(): BackupMetadataDao
     abstract fun appSecuritySettingsDao(): AppSecuritySettingsDao
+    abstract fun contactAvatarDao(): ContactAvatarDao
 
     companion object {
         @Volatile

@@ -245,7 +245,7 @@ private object TonalSchemeGenerator {
     }
 }
 
-private class TonalPalette private constructor(
+internal class TonalPalette private constructor(
     private val hue: Double,
     private val chroma: Double,
     private val neutralHue: Double,
@@ -280,10 +280,19 @@ private class TonalPalette private constructor(
                 neutralChroma = max(seed.chroma, 4.0)
             )
         }
+
+        fun fromSeed(hue: Double, chroma: Double): TonalPalette {
+            return TonalPalette(
+                hue = hue,
+                chroma = chroma.coerceIn(0.0, 150.0),
+                neutralHue = hue,
+                neutralChroma = max(chroma, 4.0)
+            )
+        }
     }
 }
 
-private class Hct private constructor(
+internal class Hct private constructor(
     val hue: Double,
     val chroma: Double,
     val tone: Double

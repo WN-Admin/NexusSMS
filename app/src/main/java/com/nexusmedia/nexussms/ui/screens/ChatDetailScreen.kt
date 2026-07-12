@@ -82,6 +82,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.ui.components.EmojiPicker
+import com.nexusmedia.nexussms.ui.components.NexusAvatar
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.ui.viewmodels.ChatViewModel
 import java.text.SimpleDateFormat
@@ -101,6 +102,7 @@ fun ChatDetailScreen(
     val isSending by viewModel.isSending.collectAsState()
     val selectedMessageType by viewModel.selectedMessageType.collectAsState()
     val shortcutSuggestions by viewModel.shortcutSuggestions.collectAsState()
+    val contactAvatarUri by viewModel.contactAvatarUri.collectAsState()
 
     val context = LocalContext.current
     var showEmojiPicker by remember { mutableStateOf(false) }
@@ -182,17 +184,27 @@ fun ChatDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            conversation?.displayName ?: "Chat",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        NexusAvatar(
+                            photoUri = contactAvatarUri,
+                            fallbackName = conversation?.displayName ?: "Chat",
+                            size = 36.dp
                         )
-                        Text(
-                            text = conversation?.participantPhoneNumbers ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
+                        Column {
+                            Text(
+                                conversation?.displayName ?: "Chat",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = conversation?.participantPhoneNumbers ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -216,6 +228,10 @@ fun ChatDetailScreen(
                 reverseLayout = true
             ) {
                 items(messages) { message ->
+                    val avatarUri = if (message.senderPhoneNumber != "self") {
+                        val normalized = message.senderPhoneNumber.replace(Regex("[^+\\d]"), "")
+                        contactAvatarUri
+                    } else null
                     MessageBubble(
                         message = message,
                         onLongClick = { reactingMessageId = message.id },
@@ -223,7 +239,8 @@ fun ChatDetailScreen(
                         onReact = { messageId, emoji ->
                             viewModel.addReaction(messageId, emoji)
                             reactingMessageId = null
-                        }
+                        },
+                        avatarPhotoUri = if (message.senderPhoneNumber != "self") avatarUri else null
                     )
                 }
             }
@@ -529,7 +546,8 @@ fun MessageBubble(
     message: Message,
     onLongClick: () -> Unit = {},
     reactingMessageId: String? = null,
-    onReact: (String, String) -> Unit = { _, _ -> }
+    onReact: (String, String) -> Unit = { _, _ -> },
+    avatarPhotoUri: String? = null
 ) {
     val isIncoming = message.senderPhoneNumber != "self"
     val bubbleTheme = LocalBubbleTheme.current
@@ -549,20 +567,11 @@ fun MessageBubble(
         horizontalArrangement = if (isIncoming) Arrangement.Start else Arrangement.End
     ) {
         if (isIncoming) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = message.senderPhoneNumber.firstOrNull()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-            }
+            NexusAvatar(
+                photoUri = avatarPhotoUri,
+                fallbackName = message.senderPhoneNumber,
+                size = 28.dp
+            )
             Spacer(modifier = Modifier.width(6.dp))
         }
 

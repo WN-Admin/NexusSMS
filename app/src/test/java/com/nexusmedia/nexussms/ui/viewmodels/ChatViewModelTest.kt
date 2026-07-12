@@ -30,6 +30,7 @@ class ChatViewModelTest {
     private val shortcodeExpansionService = mockk<ShortcodeExpansionService>()
     private val rcsService = mockk<RcsService>()
     private val encryptionManager = mockk<EncryptionManager>()
+    private val contactAvatarRepository = mockk<com.nexusmedia.nexussms.data.repository.ContactAvatarRepository>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var viewModel: ChatViewModel
@@ -44,7 +45,8 @@ class ChatViewModelTest {
             scheduledMessageRepository,
             shortcodeExpansionService,
             rcsService,
-            encryptionManager
+            encryptionManager,
+            contactAvatarRepository
         )
     }
 

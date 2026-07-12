@@ -7,6 +7,7 @@ import com.nexusmedia.nexussms.data.database.BackupMetadataDao
 import com.nexusmedia.nexussms.data.database.NexusSMSDatabase
 import com.nexusmedia.nexussms.data.database.addMigrations
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
+import com.nexusmedia.nexussms.data.repository.ContactAvatarRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.ReactionRepository
 import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
@@ -57,6 +58,16 @@ object AppModule {
     @Singleton
     fun provideAppSecuritySettingsDao(database: NexusSMSDatabase): AppSecuritySettingsDao =
         database.appSecuritySettingsDao()
+
+    @Provides
+    @Singleton
+    fun provideContactAvatarDao(database: NexusSMSDatabase): com.nexusmedia.nexussms.data.database.ContactAvatarDao =
+        database.contactAvatarDao()
+
+    @Provides
+    @Singleton
+    fun provideContactAvatarRepository(contactAvatarDao: com.nexusmedia.nexussms.data.database.ContactAvatarDao): ContactAvatarRepository =
+        ContactAvatarRepository(contactAvatarDao)
 
     // --- Repositories ---
 

@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.data.models.Conversation
+import com.nexusmedia.nexussms.ui.components.NexusAvatar
 import com.nexusmedia.nexussms.ui.viewmodels.ConversationListViewModel
 import com.nexusmedia.nexussms.ui.viewmodels.SocialPlatforms
 
@@ -158,6 +159,7 @@ fun ConversationListScreen(
     val needsPermission by viewModel.needsPermission.collectAsState()
     val selectedPlatform by viewModel.selectedPlatform.collectAsState()
     val availablePlatforms by viewModel.availablePlatforms.collectAsState()
+    val avatarCache by viewModel.avatarCache.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -300,12 +302,14 @@ fun ConversationListScreen(
                             items = filteredPinned,
                             key = { it.id }
                         ) { conversation ->
+                            val normalizedPhone = conversation.participantPhoneNumbers.replace(Regex("[^+\\d]"), "")
                             SwipeableConversationItem(
                                 conversation = conversation,
                                 onClick = { onConversationClick(conversation.id) },
                                 onDeleteClick = { viewModel.deleteConversation(conversation.id) },
                                 showPinAction = false,
-                                onUnpinClick = { viewModel.unpinConversation(conversation.id) }
+                                onUnpinClick = { viewModel.unpinConversation(conversation.id) },
+                                avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
                         item { Spacer(modifier = Modifier.height(8.dp)) }
@@ -326,12 +330,14 @@ fun ConversationListScreen(
                             items = filteredAll,
                             key = { it.id }
                         ) { conversation ->
+                            val normalizedPhone = conversation.participantPhoneNumbers.replace(Regex("[^+\\d]"), "")
                             SwipeableConversationItem(
                                 conversation = conversation,
                                 onClick = { onConversationClick(conversation.id) },
                                 onDeleteClick = { viewModel.deleteConversation(conversation.id) },
                                 showPinAction = true,
-                                onPinClick = { viewModel.pinConversation(conversation.id) }
+                                onPinClick = { viewModel.pinConversation(conversation.id) },
+                                avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
                     }
@@ -379,7 +385,8 @@ private fun SwipeableConversationItem(
     onDeleteClick: () -> Unit,
     showPinAction: Boolean = false,
     onPinClick: (() -> Unit)? = null,
-    onUnpinClick: (() -> Unit)? = null
+    onUnpinClick: (() -> Unit)? = null,
+    avatarPhotoUri: String? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
@@ -445,7 +452,8 @@ private fun SwipeableConversationItem(
             ConversationItemRow(
                 conversation = conversation,
                 onClick = onClick,
-                onUnpinClick = onUnpinClick
+                onUnpinClick = onUnpinClick,
+                avatarPhotoUri = avatarPhotoUri
             )
         }
     )
@@ -480,13 +488,12 @@ private fun SwipeableConversationItem(
 private fun ConversationItemRow(
     conversation: Conversation,
     onClick: () -> Unit,
-    onUnpinClick: (() -> Unit)? = null
+    onUnpinClick: (() -> Unit)? = null,
+    avatarPhotoUri: String? = null
 ) {
     val displayName = conversation.displayName.ifBlank {
         conversation.participantPhoneNumbers
     }
-    val avatarChar = displayName.firstOrNull()?.uppercase() ?: "?"
-    val gradient = remember(displayName) { avatarGradient(displayName) }
 
     Row(
         modifier = Modifier
@@ -495,18 +502,11 @@ private fun ConversationItemRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-    Box(
-        modifier = Modifier
-            .size(52.dp)
-            .clip(CircleShape)
-            .background(gradient),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = avatarChar,
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
+    Box {
+        NexusAvatar(
+            photoUri = avatarPhotoUri,
+            fallbackName = displayName,
+            size = 52.dp
         )
 
         val badgeColor = platformColors[conversation.sourcePlatform] ?: Color.Gray

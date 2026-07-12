@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.Telephony
+import com.nexusmedia.nexussms.data.models.ContactAvatar
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 class SmsImporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val messageRepository: MessageRepository,
-    private val conversationRepository: ConversationRepository
+    private val conversationRepository: ConversationRepository,
+    private val contactAvatarRepository: ContactAvatarRepository
 ) {
     suspend fun importAllSms(): ImportResult {
         var imported = 0
@@ -171,7 +173,7 @@ class SmsImporter @Inject constructor(
         return phone.replace(Regex("[^+\\d]"), "")
     }
 
-    private fun getContactName(phoneNumber: String): String {
+    private fun lookupContact(phoneNumber: String): Pair<String, String?> {
         val uri = Uri.withAppendedPath(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
             Uri.encode(phoneNumber)
@@ -179,7 +181,10 @@ class SmsImporter @Inject constructor(
         val cursor = try {
             context.contentResolver.query(
                 uri,
-                arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+                arrayOf(
+                    ContactsContract.PhoneLookup.DISPLAY_NAME,
+                    ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI
+                ),
                 null, null, null
             )
         } catch (e: SecurityException) {
@@ -189,12 +194,42 @@ class SmsImporter @Inject constructor(
         cursor?.use {
             if (it.moveToFirst()) {
                 val nameIndex = it.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
-                if (nameIndex >= 0) {
-                    return it.getString(nameIndex) ?: phoneNumber
-                }
+                val photoIndex = it.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
+                val name = if (nameIndex >= 0) it.getString(nameIndex) else null
+                val photo = if (photoIndex >= 0) it.getString(photoIndex) else null
+                return Pair(name ?: phoneNumber, photo)
             }
         }
-        return phoneNumber
+        return Pair(phoneNumber, null)
+    }
+
+    private fun getContactName(phoneNumber: String): String = lookupContact(phoneNumber).first
+
+    suspend fun importContactAvatars(): Int {
+        val conversations = conversationRepository.getAllConversations().first()
+        val avatars = mutableListOf<ContactAvatar>()
+
+        for (conversation in conversations) {
+            val phone = conversation.participantPhoneNumbers
+            val normalized = normalizePhone(phone)
+            val (_, photoUri) = lookupContact(phone)
+            if (photoUri != null) {
+                avatars.add(
+                    ContactAvatar(
+                        normalizedPhone = normalized,
+                        photoUri = photoUri,
+                        displayName = conversation.displayName,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+
+        if (avatars.isNotEmpty()) {
+            contactAvatarRepository.upsertAll(avatars)
+            Timber.d("Imported ${avatars.size} contact avatars")
+        }
+        return avatars.size
     }
 
     data class ImportResult(val messagesImported: Int, val conversationsImported: Int, val error: String? = null)

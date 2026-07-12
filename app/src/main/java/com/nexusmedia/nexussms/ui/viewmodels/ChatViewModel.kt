@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
+import com.nexusmedia.nexussms.data.repository.ContactAvatarRepository
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
@@ -41,7 +42,8 @@ class ChatViewModel @Inject constructor(
     private val scheduledMessageRepository: ScheduledMessageRepository,
     private val shortcodeExpansionService: ShortcodeExpansionService,
     private val rcsService: RcsService,
-    private val encryptionManager: EncryptionManager
+    private val encryptionManager: EncryptionManager,
+    private val contactAvatarRepository: ContactAvatarRepository
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -62,17 +64,24 @@ class ChatViewModel @Inject constructor(
     private val _shortcutSuggestions = MutableStateFlow<List<ShortcodeExpansionService.ShortcutPreview>>(emptyList())
     val shortcutSuggestions: StateFlow<List<ShortcodeExpansionService.ShortcutPreview>> = _shortcutSuggestions.asStateFlow()
 
+    private val _contactAvatarUri = MutableStateFlow<String?>(null)
+    val contactAvatarUri: StateFlow<String?> = _contactAvatarUri.asStateFlow()
+
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
 
     fun loadConversation(conversationId: String) {
-        // Cancel previous observers, then start fresh ones in parallel.
         conversationJob?.cancel()
         messagesJob?.cancel()
 
         conversationJob = conversationRepository.getAllConversations()
-            .onEach { list -> 
-                _currentConversation.value = list.find { it.id == conversationId }
+            .onEach { list ->
+                val conv = list.find { it.id == conversationId }
+                _currentConversation.value = conv
+                if (conv != null) {
+                    val normalized = conv.participantPhoneNumbers.replace(Regex("[^+\\d]"), "")
+                    _contactAvatarUri.value = contactAvatarRepository.getByPhone(normalized)?.photoUri
+                }
             }
             .launchIn(viewModelScope)
 
