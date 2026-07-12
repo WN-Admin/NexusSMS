@@ -23,6 +23,8 @@ import com.nexusmedia.nexussms.ui.theme.BubbleTheme
 import com.nexusmedia.nexussms.ui.theme.TonalPalette
 import androidx.compose.ui.graphics.Color
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
+import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
+import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,7 +50,9 @@ class ChatViewModel @Inject constructor(
     private val rcsService: RcsService,
     private val encryptionManager: EncryptionManager,
     private val contactAvatarRepository: ContactAvatarRepository,
-    private val themeRepository: ThemeRepository
+    private val themeRepository: ThemeRepository,
+    private val matrixMessageService: MatrixMessageService,
+    private val matrixSyncService: MatrixSyncService
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -111,6 +115,12 @@ class ChatViewModel @Inject constructor(
         messagesJob = messageRepository.getConversationMessages(conversationId)
             .onEach { msgs -> _messages.value = msgs }
             .launchIn(viewModelScope)
+
+        if (_currentConversation.value?.sourcePlatform == "MATRIX") {
+            viewModelScope.launch {
+                try { matrixSyncService.syncForRoom(_currentConversation.value?.sourceAccountId ?: "") } catch (_: Exception) {}
+            }
+        }
     }
 
     fun updateMessageText(text: String) {
@@ -129,7 +139,25 @@ class ChatViewModel @Inject constructor(
                 val attachments = _pendingAttachments.value
                 val mediaUrlsStr = attachments.joinToString(",")
 
-                when (_selectedMessageType.value) {
+                val platform = _currentConversation.value?.sourcePlatform ?: "SMS"
+                when (platform) {
+                    "MATRIX" -> {
+                        val roomId = _currentConversation.value?.sourceAccountId ?: ""
+                        if (roomId.isBlank()) {
+                            Timber.e("MATRIX conversation has no sourceAccountId (roomId)")
+                            return@launch
+                        }
+                        val result = matrixMessageService.sendTextMessage(
+                            roomId = roomId,
+                            content = messageContent,
+                            conversationId = conversationId,
+                            recipientId = roomId
+                        )
+                        if (!result.success) {
+                            Timber.e("Matrix send failed: %s", result.error)
+                        }
+                    }
+                    else -> when (_selectedMessageType.value) {
                     "SMS" -> {
                         val messageId = java.util.UUID.randomUUID().toString()
                         val message = Message(
@@ -253,6 +281,7 @@ class ChatViewModel @Inject constructor(
                                 e.printStackTrace()
                             }
                         }
+                    }
                     }
                 }
 
