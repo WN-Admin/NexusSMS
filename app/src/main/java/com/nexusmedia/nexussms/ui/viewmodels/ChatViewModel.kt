@@ -17,7 +17,11 @@ import com.nexusmedia.nexussms.data.repository.ContactAvatarRepository
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
+import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.rcs.RcsService
+import com.nexusmedia.nexussms.ui.theme.BubbleTheme
+import com.nexusmedia.nexussms.ui.theme.TonalPalette
+import androidx.compose.ui.graphics.Color
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,7 +47,8 @@ class ChatViewModel @Inject constructor(
     private val shortcodeExpansionService: ShortcodeExpansionService,
     private val rcsService: RcsService,
     private val encryptionManager: EncryptionManager,
-    private val contactAvatarRepository: ContactAvatarRepository
+    private val contactAvatarRepository: ContactAvatarRepository,
+    private val themeRepository: ThemeRepository
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -67,6 +72,9 @@ class ChatViewModel @Inject constructor(
     private val _contactAvatarUri = MutableStateFlow<String?>(null)
     val contactAvatarUri: StateFlow<String?> = _contactAvatarUri.asStateFlow()
 
+    private val _conversationBubbleTheme = MutableStateFlow<BubbleTheme?>(null)
+    val conversationBubbleTheme: StateFlow<BubbleTheme?> = _conversationBubbleTheme.asStateFlow()
+
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
 
@@ -81,6 +89,21 @@ class ChatViewModel @Inject constructor(
                 if (conv != null) {
                     val normalized = conv.participantPhoneNumbers.replace(Regex("[^+\\d]"), "")
                     _contactAvatarUri.value = contactAvatarRepository.getByPhone(normalized)?.photoUri
+                    val themeId = conv.themeId
+                    _conversationBubbleTheme.value = if (themeId != null) {
+                        val theme = themeRepository.getThemeById(themeId)
+                        theme?.let {
+                            val parseColor = { hex: String -> try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Unspecified } }
+                            BubbleTheme(
+                                sentColor = parseColor(it.bubbleColorSent),
+                                receivedColor = parseColor(it.bubbleColorReceived),
+                                sentTextColor = parseColor(it.bubbleTextColorSent),
+                                receivedTextColor = parseColor(it.bubbleTextColorReceived),
+                                cornerRadius = it.bubbleCornerRadius,
+                                elevation = it.bubbleElevation
+                            )
+                        }
+                    } else null
                 }
             }
             .launchIn(viewModelScope)
@@ -296,6 +319,13 @@ class ChatViewModel @Inject constructor(
 
     fun removeAttachment(uri: String) {
         _pendingAttachments.value = _pendingAttachments.value - uri
+    }
+
+    fun setWallpaper(url: String?) {
+        viewModelScope.launch {
+            val conv = _currentConversation.value ?: return@launch
+            conversationRepository.updateConversation(conv.copy(wallpaperUrl = url))
+        }
     }
 
     fun sendMessageWithSticker(conversationId: String, recipientPhone: String, stickerId: String) {
