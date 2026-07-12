@@ -20,7 +20,8 @@ import java.util.UUID
     indices = [
         Index("conversationId"),
         Index("timestamp"),
-        Index("status")
+        Index("status"),
+        Index("conversationId", "sourceSmsId", unique = true)
     ]
 )
 data class Message(
@@ -66,5 +67,8 @@ data class Message(
     @ColumnInfo(name = "deliveryReport")
     val deliveryReport: String = "", // JSON tracking
 
-    val sourcePlatform: String = "SMS" // SMS, RCS, TELEGRAM, DISCORD, etc.
+    val sourcePlatform: String = "SMS", // SMS, RCS, TELEGRAM, DISCORD, etc.
+
+    @ColumnInfo(name = "sourceSmsId", defaultValue = "NULL")
+    val sourceSmsId: Long? = null // System SMS _ID for idempotent import
 )

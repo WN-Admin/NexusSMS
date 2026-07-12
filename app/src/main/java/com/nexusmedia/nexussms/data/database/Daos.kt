@@ -9,6 +9,12 @@ interface MessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: Message): Long
     
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertImportedMessage(message: Message): Long
+    
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertImportedMessages(messages: List<Message>)
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessages(messages: List<Message>)
     
@@ -35,6 +41,13 @@ interface MessageDao {
         limit: Int,
         offset: Int
     ): Flow<List<Message>>
+
+    @Query("""
+        SELECT * FROM messages 
+        WHERE conversationId = :conversationId 
+        ORDER BY timestamp DESC
+    """)
+    fun getAllMessagesByConversation(conversationId: String): Flow<List<Message>>
     
     @Query("""
         SELECT * FROM messages 
@@ -45,6 +58,18 @@ interface MessageDao {
         conversationId: String,
         status: String
     ): Flow<List<Message>>
+
+    @Query("SELECT sourceSmsId FROM messages WHERE conversationId = :conversationId AND sourceSmsId IS NOT NULL")
+    suspend fun getImportedSourceSmsIds(conversationId: String): List<Long>
+
+    @Query("DELETE FROM messages WHERE sourceSmsId IN (:smsIds)")
+    suspend fun deleteMessagesBySourceSmsIds(smsIds: List<Long>)
+
+    @Query("DELETE FROM messages WHERE id IN (:messageIds)")
+    suspend fun deleteMessagesByIds(messageIds: List<String>)
+
+    @Query("SELECT id FROM messages WHERE sourceSmsId IS NULL AND conversationId = :conversationId")
+    suspend fun getNonImportedMessageIds(conversationId: String): List<String>
     
     @Query("""
         SELECT * FROM messages 

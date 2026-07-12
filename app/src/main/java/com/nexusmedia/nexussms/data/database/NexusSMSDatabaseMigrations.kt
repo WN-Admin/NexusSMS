@@ -13,7 +13,14 @@ internal object NexusSMSDatabaseMigrations {
         }
     }
 
-    val migrations: List<Migration> = listOf(MIGRATION_1_2)
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN sourceSmsId INTEGER DEFAULT NULL")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_messages_conversationId_sourceSmsId ON messages (conversationId, sourceSmsId)")
+        }
+    }
+
+    val migrations: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
 }
 
 /**

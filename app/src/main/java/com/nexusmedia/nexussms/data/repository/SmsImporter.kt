@@ -44,6 +44,7 @@ class SmsImporter @Inject constructor(
         val conversations = mutableMapOf<String, MutableList<Message>>()
 
         cursor.use {
+            val idIndex = it.getColumnIndex(Telephony.Sms._ID)
             val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
             val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
             val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
@@ -55,6 +56,7 @@ class SmsImporter @Inject constructor(
             }
 
             while (it.moveToNext()) {
+                val smsId = if (idIndex >= 0) it.getLong(idIndex) else null
                 val address = it.getString(addressIndex) ?: "unknown"
                 val body = it.getString(bodyIndex) ?: continue
                 val date = it.getLong(dateIndex)
@@ -71,7 +73,8 @@ class SmsImporter @Inject constructor(
                     timestamp = date,
                     type = "TEXT",
                     status = "SENT",
-                    isEncrypted = false
+                    isEncrypted = false,
+                    sourceSmsId = smsId
                 )
 
                 conversations.getOrPut(normalizePhone(address)) { mutableListOf() }.add(message)
@@ -107,13 +110,61 @@ class SmsImporter @Inject constructor(
             }
 
             for (message in messages) {
-                messageRepository.insertMessage(message.copy(conversationId = conversationId))
-                imported++
+                val result = messageRepository.insertImportedMessage(message.copy(conversationId = conversationId))
+                if (result != -1L) imported++
             }
         }
 
-        Timber.d("Import complete: $imported messages in ${conversations.size} conversations")
+        Timber.d("Import complete: $imported new messages in ${conversations.size} conversations")
         return ImportResult(imported, conversations.size)
+    }
+
+    suspend fun resyncFromDevice(): ResyncResult {
+        Timber.d("Starting SMS re-sync from device...")
+
+        val cursor = try {
+            context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS),
+                null, null, null
+            )
+        } catch (e: SecurityException) {
+            Timber.e(e, "Permission denied querying SMS for resync")
+            return ResyncResult(0, error = "SMS permission denied")
+        }
+
+        if (cursor == null) {
+            return ResyncResult(0, error = "Unable to access SMS messages")
+        }
+
+        val currentSmsIds = mutableSetOf<Long>()
+        cursor.use {
+            val idIndex = it.getColumnIndex(Telephony.Sms._ID)
+            if (idIndex < 0) return ResyncResult(0, error = "SMS schema error")
+            while (it.moveToNext()) {
+                currentSmsIds.add(it.getLong(idIndex))
+            }
+        }
+
+        Timber.d("Device has ${currentSmsIds.size} SMS messages")
+
+        var removed = 0
+        val existingConversations = conversationRepository.getAllConversations().first()
+
+        for (conversation in existingConversations) {
+            val importedIds = messageRepository.getImportedSourceSmsIds(conversation.id)
+            if (importedIds.isEmpty()) continue
+
+            val staleIds = importedIds.filter { it !in currentSmsIds }
+            if (staleIds.isNotEmpty()) {
+                messageRepository.deleteMessagesByIds(staleIds.map { it.toString() })
+                removed += staleIds.size
+                Timber.d("Removed ${staleIds.size} deleted messages from conversation ${conversation.displayName}")
+            }
+        }
+
+        Timber.d("Re-sync complete: removed $removed stale messages")
+        return ResyncResult(removed)
     }
 
     private fun normalizePhone(phone: String): String {
@@ -147,4 +198,5 @@ class SmsImporter @Inject constructor(
     }
 
     data class ImportResult(val messagesImported: Int, val conversationsImported: Int, val error: String? = null)
+    data class ResyncResult(val messagesRemoved: Int, val error: String? = null)
 }

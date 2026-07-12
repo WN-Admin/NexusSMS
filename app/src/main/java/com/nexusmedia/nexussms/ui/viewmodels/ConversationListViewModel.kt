@@ -181,4 +181,23 @@ class ConversationListViewModel @Inject constructor(
     fun clearImportResult() {
         _importResult.value = null
     }
+
+    fun resyncSms() {
+        viewModelScope.launch {
+            _isImporting.value = true
+            try {
+                val result = smsImporter.resyncFromDevice()
+                if (result.error != null) {
+                    _importResult.value = result.error
+                } else {
+                    _importResult.value = "Re-synced: removed ${result.messagesRemoved} messages deleted from device"
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Re-sync failed")
+                _importResult.value = "Re-sync failed: ${e.message}"
+            } finally {
+                _isImporting.value = false
+            }
+        }
+    }
 }

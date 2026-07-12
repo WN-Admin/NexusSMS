@@ -30,6 +30,7 @@ class ChatViewModelTest {
     private val shortcodeExpansionService = mockk<ShortcodeExpansionService>()
     private val rcsService = mockk<RcsService>()
     private val encryptionManager = mockk<EncryptionManager>()
+    private val context = mockk<android.content.Context>(relaxed = true)
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var viewModel: ChatViewModel
 
@@ -37,6 +38,7 @@ class ChatViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         viewModel = ChatViewModel(
+            context,
             messageRepository,
             conversationRepository,
             scheduledMessageRepository,
@@ -48,7 +50,6 @@ class ChatViewModelTest {
 
     @After
     fun tearDown() {
-        Dispatchers.resetMain()
     }
 
     @Test
@@ -94,8 +95,10 @@ class ChatViewModelTest {
         coEvery { shortcodeExpansionService.expandMessage(messageText) } returns expandedText
         every { encryptionManager.generateMessageSignature(expandedText) } returns signedText
         coEvery { messageRepository.insertMessage(any()) } returns 1L
+        coEvery { messageRepository.updateMessage(any()) } returns Unit
 
         viewModel.sendMessage(conversationId, recipientPhone)
+        testScheduler.advanceUntilIdle()
 
         coVerify { messageRepository.insertMessage(any()) }
         assertEquals("", viewModel.messageText.value)
