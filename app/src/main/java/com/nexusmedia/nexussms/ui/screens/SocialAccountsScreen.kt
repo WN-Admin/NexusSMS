@@ -19,30 +19,40 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -51,6 +61,7 @@ import com.nexusmedia.nexussms.ui.viewmodels.PlatformInfo
 import com.nexusmedia.nexussms.ui.viewmodels.SocialPlatforms
 import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountsViewModel
 import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountDialogState
+import com.nexusmedia.nexussms.ui.viewmodels.MatrixLoginUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,8 +72,18 @@ fun SocialAccountsScreen(
     val accounts by viewModel.accounts.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
     val dialogState by viewModel.dialogState.collectAsState()
+    val matrixLoginState by viewModel.matrixLoginState.collectAsState()
+    val matrixSyncStatus by viewModel.matrixSyncStatus.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val connectedPlatforms = accounts.filter { it.isConnected }.map { it.platform }
+
+    LaunchedEffect(matrixSyncStatus) {
+        matrixSyncStatus?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSyncStatus()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -82,7 +103,8 @@ fun SocialAccountsScreen(
                     titleContentColor = Color.White
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -101,7 +123,10 @@ fun SocialAccountsScreen(
                     account = account,
                     onConnect = { viewModel.connectPlatform(platform) },
                     onDisconnect = { viewModel.disconnectPlatform(platform.id) },
-                    onDelete = { account?.let { viewModel.showDeleteDialog(it) } }
+                    onDelete = { account?.let { viewModel.showDeleteDialog(it) } },
+                    onSync = if (platform.id == "MATRIX" && isConnected) {
+                        { viewModel.syncMatrixIncremental() }
+                    } else null
                 )
             }
 
@@ -187,7 +212,7 @@ fun SocialAccountsScreen(
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Connect via web login:",
+                    text = "Connect via web login or API:",
                     modifier = Modifier.padding(horizontal = 16.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
@@ -196,63 +221,57 @@ fun SocialAccountsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            val webPlatforms = SocialPlatforms.all.filter { installedApps[it.id] != true }
-            if (webPlatforms.isEmpty()) {
-                item {
-                    Row(
+            val apiPlatforms = SocialPlatforms.all.filter { it.supportsApi }
+            items(apiPlatforms) { platform ->
+                val isConnected = connectedPlatforms.contains(platform.id)
+                val account = accounts.find { it.platform == platform.id }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Cloud,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(platform.color)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Default.OpenInBrowser,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "All supported apps are installed on this device",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = platform.name.first().toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                }
-            } else {
-                items(webPlatforms) { platform ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.OpenInBrowser,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(Color(platform.color)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = platform.name.first().toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = platform.name,
                             style = MaterialTheme.typography.bodyMedium
                         )
+                        Text(
+                            text = if (isConnected) "Connected — Tap to sync" else "Tap to log in with API",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (isConnected) {
+                        IconButton(onClick = { viewModel.syncMatrixIncremental() }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Sync",
+                                tint = Color(0xFF4CAF50)
+                            )
+                        }
                     }
                 }
             }
@@ -279,8 +298,111 @@ fun SocialAccountsScreen(
                 }
             }
         )
+        SocialAccountDialogState.MatrixLogin -> MatrixLoginDialog(
+            state = matrixLoginState,
+            onHomeserverChange = viewModel::updateMatrixLoginHomeserver,
+            onUsernameChange = viewModel::updateMatrixLoginUsername,
+            onPasswordChange = viewModel::updateMatrixLoginPassword,
+            onLogin = viewModel::submitMatrixLogin,
+            onDismiss = viewModel::dismissMatrixLogin
+        )
         SocialAccountDialogState.Hidden -> {}
     }
+}
+
+@Composable
+private fun MatrixLoginDialog(
+    state: MatrixLoginUiState,
+    onHomeserverChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onLogin: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0DBD8B)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("M", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Matrix Login")
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Connect to your Matrix homeserver to sync messages.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = state.homeserver,
+                    onValueChange = onHomeserverChange,
+                    label = { Text("Homeserver URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.username,
+                    onValueChange = onUsernameChange,
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    placeholder = { Text("@user:matrix.org") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                if (state.error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onLogin,
+                enabled = !state.isLoading && state.username.isNotBlank() && state.password.isNotBlank()
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text("Connect")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -291,7 +413,8 @@ private fun PlatformCard(
     account: SocialAccount?,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSync: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -382,6 +505,15 @@ private fun PlatformCard(
             }
 
             if (isConnected) {
+                if (onSync != null) {
+                    IconButton(onClick = onSync) {
+                        Icon(
+                            Icons.Default.Sync,
+                            contentDescription = "Sync",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 TextButton(onClick = onDisconnect) {
                     Text("Disconnect")
                 }
