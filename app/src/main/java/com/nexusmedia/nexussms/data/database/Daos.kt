@@ -351,6 +351,24 @@ interface BackupMetadataDao {
 }
 
 @Dao
+interface ContactAvatarDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(avatar: ContactAvatar)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(avatars: List<ContactAvatar>)
+
+    @Query("SELECT * FROM contact_avatars WHERE normalized_phone = :normalizedPhone")
+    suspend fun getByPhone(normalizedPhone: String): ContactAvatar?
+
+    @Query("SELECT * FROM contact_avatars ORDER BY display_name ASC")
+    fun getAll(): Flow<List<ContactAvatar>>
+
+    @Query("DELETE FROM contact_avatars WHERE normalized_phone = :normalizedPhone")
+    suspend fun deleteByPhone(normalizedPhone: String)
+}
+
+@Dao
 interface AppSecuritySettingsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSettings(settings: AppSecuritySettings)

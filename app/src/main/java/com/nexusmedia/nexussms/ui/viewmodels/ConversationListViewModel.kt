@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Conversation
+import com.nexusmedia.nexussms.data.repository.ContactAvatarRepository
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.SmsImporter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +23,7 @@ import javax.inject.Inject
 class ConversationListViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val smsImporter: SmsImporter,
+    private val contactAvatarRepository: ContactAvatarRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -52,6 +54,9 @@ class ConversationListViewModel @Inject constructor(
     private val _availablePlatforms = MutableStateFlow<List<String>>(emptyList())
     val availablePlatforms: StateFlow<List<String>> = _availablePlatforms.asStateFlow()
 
+    private val _avatarCache = MutableStateFlow<Map<String, String?>>(emptyMap())
+    val avatarCache: StateFlow<Map<String, String?>> = _avatarCache.asStateFlow()
+
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("nexus_sms_prefs", Context.MODE_PRIVATE)
     }
@@ -71,6 +76,17 @@ class ConversationListViewModel @Inject constructor(
         conversationRepository.getActivePlatforms()
             .onEach { _availablePlatforms.value = it }
             .launchIn(viewModelScope)
+
+        contactAvatarRepository.getAll()
+            .onEach { avatars ->
+                _avatarCache.value = avatars.associate { it.normalizedPhone to it.photoUri }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    fun getAvatarUri(phoneNumber: String): String? {
+        val normalized = phoneNumber.replace(Regex("[^+\\d]"), "")
+        return _avatarCache.value[normalized]
     }
 
     fun selectConversation(conversation: Conversation) {
@@ -160,8 +176,10 @@ class ConversationListViewModel @Inject constructor(
                     _importResult.value = result.error
                 } else if (result.messagesImported > 0) {
                     prefs.edit().putBoolean("sms_import_done", true).apply()
+                    smsImporter.importContactAvatars()
                     _importResult.value = "Imported ${result.messagesImported} messages from ${result.conversationsImported} conversations"
                 } else {
+                    smsImporter.importContactAvatars()
                     prefs.edit().putBoolean("sms_import_done", true).apply()
                     _importResult.value = "No SMS messages found to import"
                 }

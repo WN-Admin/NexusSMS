@@ -20,6 +20,7 @@ import org.junit.Test
 class ConversationListViewModelTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val smsImporter = mockk<com.nexusmedia.nexussms.data.repository.SmsImporter>(relaxed = true)
+    private val contactAvatarRepository = mockk<com.nexusmedia.nexussms.data.repository.ContactAvatarRepository>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var viewModel: ConversationListViewModel
@@ -54,8 +55,9 @@ class ConversationListViewModelTest {
         every { conversationRepository.getPinnedConversations() } returns flowOf(pinned)
         every { conversationRepository.getActivePlatforms() } returns flowOf(listOf("SMS"))
         every { context.getSharedPreferences(any(), any()) } returns mockk(relaxed = true)
+        every { contactAvatarRepository.getAll() } returns flowOf(emptyList())
 
-        viewModel = ConversationListViewModel(conversationRepository, smsImporter, context)
+        viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, context)
     }
 
     @After
