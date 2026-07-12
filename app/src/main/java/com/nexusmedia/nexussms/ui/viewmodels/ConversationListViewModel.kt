@@ -46,6 +46,12 @@ class ConversationListViewModel @Inject constructor(
     private val _needsPermission = MutableStateFlow(false)
     val needsPermission: StateFlow<Boolean> = _needsPermission.asStateFlow()
 
+    private val _selectedPlatform = MutableStateFlow("ALL")
+    val selectedPlatform: StateFlow<String> = _selectedPlatform.asStateFlow()
+
+    private val _availablePlatforms = MutableStateFlow<List<String>>(emptyList())
+    val availablePlatforms: StateFlow<List<String>> = _availablePlatforms.asStateFlow()
+
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("nexus_sms_prefs", Context.MODE_PRIVATE)
     }
@@ -60,6 +66,10 @@ class ConversationListViewModel @Inject constructor(
 
         conversationRepository.getPinnedConversations()
             .onEach { _pinnedConversations.value = it }
+            .launchIn(viewModelScope)
+
+        conversationRepository.getActivePlatforms()
+            .onEach { _availablePlatforms.value = it }
             .launchIn(viewModelScope)
     }
 
@@ -113,6 +123,22 @@ class ConversationListViewModel @Inject constructor(
         viewModelScope.launch {
             conversationRepository.clearUnreadCount(conversationId)
         }
+    }
+
+    fun setPlatform(platform: String) {
+        _selectedPlatform.value = platform
+    }
+
+    fun getFilteredConversations(): List<Conversation> {
+        val platform = _selectedPlatform.value
+        val all = _conversationList.value
+        return if (platform == "ALL") all else all.filter { it.sourcePlatform == platform }
+    }
+
+    fun getFilteredPinnedConversations(): List<Conversation> {
+        val platform = _selectedPlatform.value
+        val pinned = _pinnedConversations.value
+        return if (platform == "ALL") pinned else pinned.filter { it.sourcePlatform == platform }
     }
 
     fun checkAndAutoImport() {

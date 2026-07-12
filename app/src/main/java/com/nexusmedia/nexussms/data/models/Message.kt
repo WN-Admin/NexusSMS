@@ -64,5 +64,7 @@ data class Message(
     val rcsMessageId: String? = null,
     
     @ColumnInfo(name = "deliveryReport")
-    val deliveryReport: String = "" // JSON tracking
+    val deliveryReport: String = "", // JSON tracking
+
+    val sourcePlatform: String = "SMS" // SMS, RCS, TELEGRAM, DISCORD, etc.
 )

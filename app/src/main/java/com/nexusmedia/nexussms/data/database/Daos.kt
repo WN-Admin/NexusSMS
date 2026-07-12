@@ -91,6 +91,16 @@ interface ConversationDao {
 
     @Query("SELECT * FROM conversations WHERE isPinned = 1 ORDER BY lastMessageTime DESC")
     fun getPinnedConversations(): Flow<List<Conversation>>
+
+    @Query("""
+        SELECT * FROM conversations
+        WHERE isArchived = 0 AND sourcePlatform = :platform
+        ORDER BY lastMessageTime DESC
+    """)
+    fun getConversationsByPlatform(platform: String): Flow<List<Conversation>>
+
+    @Query("SELECT DISTINCT sourcePlatform FROM conversations WHERE isArchived = 0")
+    fun getActivePlatforms(): Flow<List<String>>
     
     @Query("""
         SELECT * FROM conversations 
