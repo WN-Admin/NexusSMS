@@ -5,8 +5,10 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +26,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -317,6 +326,13 @@ fun ConversationListScreen(
                                 onDeleteClick = { viewModel.deleteConversation(conversation.id) },
                                 showPinAction = false,
                                 onUnpinClick = { viewModel.unpinConversation(conversation.id) },
+                                onBlockClick = { viewModel.blockConversation(conversation.id) },
+                                onMuteClick = {
+                                    if (conversation.isMuted) viewModel.unmuteConversation(conversation.id)
+                                    else viewModel.muteConversation(conversation.id)
+                                },
+                                onCallClick = { /* TODO: launch dialer */ },
+                                onViewInfoClick = { /* TODO: show contact info */ },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
@@ -345,6 +361,13 @@ fun ConversationListScreen(
                                 onDeleteClick = { viewModel.deleteConversation(conversation.id) },
                                 showPinAction = true,
                                 onPinClick = { viewModel.pinConversation(conversation.id) },
+                                onBlockClick = { viewModel.blockConversation(conversation.id) },
+                                onMuteClick = {
+                                    if (conversation.isMuted) viewModel.unmuteConversation(conversation.id)
+                                    else viewModel.muteConversation(conversation.id)
+                                },
+                                onCallClick = { /* TODO: launch dialer */ },
+                                onViewInfoClick = { /* TODO: show contact info */ },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
@@ -394,6 +417,10 @@ private fun SwipeableConversationItem(
     showPinAction: Boolean = false,
     onPinClick: (() -> Unit)? = null,
     onUnpinClick: (() -> Unit)? = null,
+    onBlockClick: (() -> Unit)? = null,
+    onMuteClick: (() -> Unit)? = null,
+    onCallClick: (() -> Unit)? = null,
+    onViewInfoClick: (() -> Unit)? = null,
     avatarPhotoUri: String? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -461,6 +488,10 @@ private fun SwipeableConversationItem(
                 conversation = conversation,
                 onClick = onClick,
                 onUnpinClick = onUnpinClick,
+                onBlockClick = onBlockClick,
+                onMuteClick = onMuteClick,
+                onCallClick = onCallClick,
+                onViewInfoClick = onViewInfoClick,
                 avatarPhotoUri = avatarPhotoUri
             )
         }
@@ -492,49 +523,59 @@ private fun SwipeableConversationItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationItemRow(
     conversation: Conversation,
     onClick: () -> Unit,
+    onDeleteClick: () -> Unit = {},
     onUnpinClick: (() -> Unit)? = null,
+    onBlockClick: (() -> Unit)? = null,
+    onMuteClick: (() -> Unit)? = null,
+    onCallClick: (() -> Unit)? = null,
+    onViewInfoClick: (() -> Unit)? = null,
     avatarPhotoUri: String? = null
 ) {
     val displayName = conversation.displayName.ifBlank {
         conversation.participantPhoneNumbers
     }
+    var showContextMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = { showContextMenu = true }
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-    Box {
-        NexusAvatar(
-            photoUri = avatarPhotoUri,
-            fallbackName = displayName,
-            size = 52.dp
-        )
-
-        val badgeColor = platformColors[conversation.sourcePlatform] ?: Color.Gray
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(badgeColor)
-                .padding(2.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = conversation.sourcePlatform.first().toString(),
-                color = Color.White,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold
+        Box {
+            NexusAvatar(
+                photoUri = avatarPhotoUri,
+                fallbackName = displayName,
+                size = 52.dp
             )
+
+            val badgeColor = platformColors[conversation.sourcePlatform] ?: Color.Gray
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(badgeColor)
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = conversation.sourcePlatform.first().toString(),
+                    color = Color.White,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
-    }
 
         Spacer(modifier = Modifier.width(14.dp))
 
@@ -557,6 +598,22 @@ private fun ConversationItemRow(
                             contentDescription = "Pinned",
                             modifier = Modifier.size(12.dp),
                             tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (conversation.isBlocked) {
+                        Icon(
+                            imageVector = Icons.Default.Block,
+                            contentDescription = "Blocked",
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    if (conversation.isMuted) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeOff,
+                            contentDescription = "Muted",
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Text(
@@ -641,6 +698,58 @@ private fun ConversationItemRow(
                     }
                 }
             }
+        }
+
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false }
+        ) {
+            if (onCallClick != null) {
+                DropdownMenuItem(
+                    text = { Text("Call") },
+                    onClick = { showContextMenu = false; onCallClick() },
+                    leadingIcon = { Icon(Icons.Default.Call, contentDescription = null) }
+                )
+            }
+            if (onViewInfoClick != null) {
+                DropdownMenuItem(
+                    text = { Text("View Contact") },
+                    onClick = { showContextMenu = false; onViewInfoClick() },
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(if (conversation.isMuted) "Unmute" else "Mute") },
+                onClick = {
+                    showContextMenu = false
+                    onMuteClick?.invoke()
+                },
+                leadingIcon = {
+                    Icon(
+                        if (conversation.isMuted) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                        contentDescription = null
+                    )
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(if (conversation.isBlocked) "Unblock" else "Block") },
+                onClick = {
+                    showContextMenu = false
+                    onBlockClick?.invoke()
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Block,
+                        contentDescription = null,
+                        tint = if (conversation.isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Delete") },
+                onClick = { showContextMenu = false; onDeleteClick() },
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+            )
         }
     }
 

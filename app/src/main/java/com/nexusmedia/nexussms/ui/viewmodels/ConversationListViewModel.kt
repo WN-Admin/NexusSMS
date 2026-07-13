@@ -139,6 +139,24 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    fun blockConversation(conversationId: String) {
+        viewModelScope.launch {
+            val conversation = conversationRepository.getConversationById(conversationId)
+            if (conversation != null) {
+                conversationRepository.updateConversation(conversation.copy(isBlocked = true))
+            }
+        }
+    }
+
+    fun unblockConversation(conversationId: String) {
+        viewModelScope.launch {
+            val conversation = conversationRepository.getConversationById(conversationId)
+            if (conversation != null) {
+                conversationRepository.updateConversation(conversation.copy(isBlocked = false))
+            }
+        }
+    }
+
     fun markAsRead(conversationId: String) {
         viewModelScope.launch {
             conversationRepository.clearUnreadCount(conversationId)

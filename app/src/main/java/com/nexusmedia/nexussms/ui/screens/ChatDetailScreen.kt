@@ -41,12 +41,22 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -125,6 +135,7 @@ fun ChatDetailScreen(
     var showLocationPermissionDenied by remember { mutableStateOf(false) }
     var showAttachments by remember { mutableStateOf(false) }
     var showWallpaperPicker by remember { mutableStateOf(false) }
+    var showConversationMenu by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -224,7 +235,90 @@ fun ChatDetailScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
-                )
+                ),
+                actions = {
+                    IconButton(onClick = { showConversationMenu = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = Color.White
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showConversationMenu,
+                        onDismissRequest = { showConversationMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Call") },
+                            onClick = {
+                                showConversationMenu = false
+                                conversation?.participantPhoneNumbers?.let { phone ->
+                                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${phone.take(10)}"))
+                                    context.startActivity(intent)
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Default.Call, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("View Contact") },
+                            onClick = {
+                                showConversationMenu = false
+                                conversation?.participantPhoneNumbers?.let { phone ->
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("content://contacts/people/"))
+                                    try { context.startActivity(intent) } catch (_: Exception) {}
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Wallpaper") },
+                            onClick = {
+                                showConversationMenu = false
+                                showWallpaperPicker = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Wallpaper, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Search") },
+                            onClick = { showConversationMenu = false },
+                            leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (conversation?.isMuted == true) "Unmute" else "Mute") },
+                            onClick = {
+                                showConversationMenu = false
+                                viewModel.toggleMute(conversationId)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    if (conversation?.isMuted == true) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (conversation?.isBlocked == true) "Unblock" else "Block") },
+                            onClick = {
+                                showConversationMenu = false
+                                viewModel.toggleBlock(conversationId)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Block,
+                                    contentDescription = null,
+                                    tint = if (conversation?.isBlocked == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            onClick = {
+                                showConversationMenu = false
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
+                }
             )
         }
     ) { paddingValues ->

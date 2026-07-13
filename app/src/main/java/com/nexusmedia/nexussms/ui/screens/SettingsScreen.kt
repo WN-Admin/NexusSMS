@@ -19,8 +19,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Shortcut
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nexusmedia.nexussms.ui.viewmodels.SettingsViewModel
@@ -120,7 +132,7 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsItem(title = "Themes", subtitle = "Browse & create themes") { navController.navigate("themes") }
+                SettingsItem(title = "Themes", subtitle = "Browse & create themes", icon = Icons.Default.Palette) { navController.navigate("themes") }
             }
 
             item {
@@ -164,36 +176,36 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved") { navController.navigate("signatures") }
+                SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved", icon = Icons.Default.EditNote) { navController.navigate("signatures") }
             }
-            item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages") { navController.navigate("scheduled") } }
+            item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages", icon = Icons.Default.Schedule) { navController.navigate("scheduled") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Shortcuts")
             }
-            item { SettingsItem(title = "Quick Shortcuts", subtitle = "Manage shortcodes") { navController.navigate("shortcuts") } }
+            item { SettingsItem(title = "Quick Shortcuts", subtitle = "Manage shortcodes", icon = Icons.Default.Shortcut) { navController.navigate("shortcuts") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Security & Privacy")
             }
-            item { SettingsItem(title = "Security Settings", subtitle = "App lock, biometrics, privacy") { navController.navigate("security") } }
-            item { SettingsItem(title = "Backup & Restore", subtitle = "Google Drive backup") { navController.navigate("backup") } }
+            item { SettingsItem(title = "Security Settings", subtitle = "App lock, biometrics, privacy", icon = Icons.Default.Security) { navController.navigate("security") } }
+            item { SettingsItem(title = "Backup & Restore", subtitle = "Google Drive backup", icon = Icons.Default.Cloud) { navController.navigate("backup") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Integrations")
             }
-            item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms") { navController.navigate("social") } }
+            item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms", icon = Icons.Default.People) { navController.navigate("social") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "About")
             }
-            item { SettingsItem(title = "Version", subtitle = "1.0.3") }
-            item { SettingsItem(title = "Privacy Policy", subtitle = "") { navController.navigate("privacy_policy") } }
-            item { SettingsItem(title = "Terms of Service", subtitle = "") { navController.navigate("terms_of_service") } }
+            item { SettingsItem(title = "Version", subtitle = "1.0.3", icon = Icons.Default.Info) }
+            item { SettingsItem(title = "Privacy Policy", icon = Icons.Default.Shield) { navController.navigate("privacy_policy") } }
+            item { SettingsItem(title = "Terms of Service", icon = Icons.Default.Description) { navController.navigate("terms_of_service") } }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }
@@ -203,14 +215,15 @@ fun SettingsScreen(
 @Composable
 fun SettingsSection(title: String) {
     Text(
-        text = title,
+        text = title.uppercase(),
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(16.dp),
-        style = MaterialTheme.typography.labelMedium,
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 1.5.sp
     )
 }
 
@@ -218,28 +231,44 @@ fun SettingsSection(title: String) {
 fun SettingsItem(
     title: String,
     subtitle: String = "",
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     onClick: () -> Unit = {}
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium
-        )
-        if (subtitle.isNotEmpty()) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.width(16.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
-    HorizontalDivider()
+    HorizontalDivider(
+        modifier = Modifier.padding(start = if (icon != null) 56.dp else 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
 }
 
 @Composable
@@ -247,7 +276,8 @@ fun DarkModeToggle(isDarkMode: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .clickable { onToggle(!isDarkMode) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -258,17 +288,29 @@ fun DarkModeToggle(isDarkMode: Boolean, onToggle: (Boolean) -> Unit) {
             Icon(
                 imageVector = if (isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
                 contentDescription = "Dark Mode",
-                modifier = Modifier.width(24.dp)
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = if (isDarkMode) "Dark Mode" else "Light Mode",
-                style = MaterialTheme.typography.bodyMedium
+                text = "Dark Mode",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
-        Switch(checked = isDarkMode, onCheckedChange = { onToggle(it) })
+        Switch(
+            checked = isDarkMode,
+            onCheckedChange = { onToggle(it) },
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
     }
-    HorizontalDivider()
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 56.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
 }
 
 private fun checkIsDefaultSmsApp(context: Context): Boolean {
