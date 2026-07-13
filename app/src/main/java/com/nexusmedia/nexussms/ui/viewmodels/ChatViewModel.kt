@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
+import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -52,7 +53,8 @@ class ChatViewModel @Inject constructor(
     private val contactAvatarRepository: ContactAvatarRepository,
     private val themeRepository: ThemeRepository,
     private val matrixMessageService: MatrixMessageService,
-    private val matrixSyncService: MatrixSyncService
+    private val matrixSyncService: MatrixSyncService,
+    private val telegramService: TelegramService
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -155,6 +157,17 @@ class ChatViewModel @Inject constructor(
                         )
                         if (!result.success) {
                             Timber.e("Matrix send failed: %s", result.error)
+                        }
+                    }
+                    "TELEGRAM" -> {
+                        val chatId = _currentConversation.value?.sourceAccountId?.toLongOrNull()
+                        if (chatId == null) {
+                            Timber.e("TELEGRAM conversation has no valid sourceAccountId")
+                            return@launch
+                        }
+                        val sent = telegramService.sendMessage(chatId, messageContent)
+                        if (!sent) {
+                            Timber.e("Telegram send failed")
                         }
                     }
                     else -> when (_selectedMessageType.value) {
