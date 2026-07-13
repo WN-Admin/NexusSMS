@@ -45,14 +45,15 @@ A feature-rich Android SMS/MMS messaging application with RCS support, end-to-en
 - **Content Privacy** - Hide message content in recent apps
 
 ### Social Media Integration
-Connect accounts from:
-- Facebook Messenger
-- Discord
-- Telegram
-- Viber
-- Matrix
+Connect to messaging platforms via direct API integration:
+- **Matrix** — Full Matrix Client-Server API: OAuth login, room sync, message send/receive
+- **Telegram** — Bot API via @BotFather: verify token, poll updates, send messages
+- **Discord** — Bot API: list guilds/channels, fetch/send messages
+- **Facebook Messenger** — Graph API v18.0: Page Access Token auth, conversation sync, send
+- **Signal** — Via local app detection (read-only)
+- **Slack** — Via local app detection (read-only)
 
-Unified account management with connect/disconnect flow and sync status.
+Each API-connected platform shows as a filterable tab in the conversation list. Messages sync from the platform into the local Room database and can be replied to from within NexusSMS.
 
 ### Backup & Restore
 - **Google Drive Backup** - Real Google Drive API v3 integration with OAuth2 authentication

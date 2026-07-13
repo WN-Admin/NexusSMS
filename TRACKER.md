@@ -1,11 +1,15 @@
 # NexusSMS Android - Complete Build Tracker & Technical Specification
 
-**Version**: 1.0  
-**Last Updated**: May 5, 2026  
-**Target Platform**: Android 13+ (API 33+)  
+**Version**: 1.0.3  
+**Last Updated**: July 12, 2026  
+**Package**: `com.nexusmedia.nexussms`  
+**Target Platform**: Android 7+ (API 24+)  
+**Compile SDK**: 35  
 **Build System**: Gradle 8.1.2  
 **Language**: Kotlin 1.9+  
-**IDE**: Android Studio Giraffe+
+**IDE**: Android Studio Giraffe+  
+**DB Version**: 4 (migrations v1→v4)  
+**HEAD**: `64464c4` (dev + main)
 
 ---
 
@@ -882,9 +886,10 @@ interface AppSecuritySettingsDao {
         SocialAccount::class,
         Reaction::class,
         BackupMetadata::class,
-        AppSecuritySettings::class
+        AppSecuritySettings::class,
+        ContactAvatar::class  // Added in v4
     ],
-    version = 1,
+    version = 4,  // Current: v4 (v1→v2: sourcePlatform, v2→v3: sourceSmsId, v3→v4: contact_avatars)
     exportSchema = true
 )
 @TypeConverters(DateConverter::class, JsonConverter::class)
@@ -900,6 +905,7 @@ abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun reactionDao(): ReactionDao
     abstract fun backupMetadataDao(): BackupMetadataDao
     abstract fun appSecuritySettingsDao(): AppSecuritySettingsDao
+    abstract fun contactAvatarDao(): ContactAvatarDao  // Added in v4
     
     companion object {
         @Volatile
@@ -912,7 +918,7 @@ abstract class NexusSMSDatabase : RoomDatabase() {
                     NexusSMSDatabase::class.java,
                     "nexussms_database"
                 )
-                    .addMigrations() // Add migrations here as schema evolves
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -2408,47 +2414,202 @@ fun AppLockScreen(
 
 ---
 
-## 5.10 Social Media Integration
+## 5.10 Social Media Integration (IMPLEMENTED)
 
+### **Direct API Approach**
+Each platform has its own Retrofit-based service with full API integration.
 
-### **Adapter Pattern**
+### **Matrix (Client-Server API)**
+
+**Location**: `features/matrix/`
 
 ```kotlin
-interface MessagingAdapter {
-    suspend fun sendMessage(content: String, recipientId: String): Boolean
-    suspend fun receiveMessage(): Message?
-    suspend fun syncThreads(): List<Conversation>
-    suspend fun authenticate(): Boolean
-    suspend fun logout(): Boolean
-}
-
-// Discord Implementation
-class DiscordAdapter(private val token: String) : MessagingAdapter {
-    override suspend fun sendMessage(content: String, recipientId: String): Boolean {
-        // Use Discord API to send DM
-        return true
-    }
+// MatrixApi.kt — Retrofit interface
+interface MatrixApi {
+    @POST("_matrix/client/r0/login")
+    suspend fun login(@Body request: LoginRequest): LoginResponse
     
-    override suspend fun receiveMessage(): Message? {
-        // Poll Discord API for new messages
-        return null
-    }
+    @GET("_matrix/client/r0/sync")
+    suspend fun sync(
+        @Header("Authorization") token: String,
+        @Query("since") since: String? = null,
+        @Query("timeout") timeout: Long = 30000
+    ): SyncResponse
     
-    override suspend fun syncThreads(): List<Conversation> {
-        // Fetch all conversations from Discord
-        return emptyList()
-    }
+    @POST("_matrix/client/r0/rooms/{roomId}/send/m.room.message/{txnId}")
+    suspend fun sendMessage(
+        @Header("Authorization") token: String,
+        @Path("roomId") roomId: String,
+        @Path("txnId") txnId: String,
+        @Body content: MessageContent
+    ): SendResponse
+    
+    @POST("_matrix/client/r0/rooms/{roomId}/read_markers")
+    suspend fun markAsRead(
+        @Header("Authorization") token: String,
+        @Path("roomId") roomId: String,
+        @Body body: ReadMarkerBody
+    )
+    
+    @Multipart
+    @POST("_matrix/media/r0/upload")
+    suspend fun uploadMedia(
+        @Header("Authorization") token: String,
+        @Part file: MultipartBody.Part,
+        @Part("filename") filename: RequestBody
+    ): UploadResponse
 }
 
-// Telegram Implementation
-class TelegramAdapter(private val botToken: String) : MessagingAdapter {
-    // Similar implementation
-}
-
-// Facebook Messenger, Matrix, Viber...
+// MatrixClient.kt — Singleton OkHttp + Retrofit with auth interceptor
+// MatrixAuthService.kt — Login, session persistence, restore, logout
+// MatrixSyncService.kt — Initial/incremental/per-room sync
+// MatrixMessageService.kt — Send text/image/file, upload, mark-as-read
 ```
 
-**Location**: `features/social/SocialMediaIntegrationService.kt`
+**Auth flow**: Password-based login via POST /login → token stored in SocialAccount → session auto-restored on app launch  
+**Sync strategy**: Initial sync fetches all rooms; incremental sync via `since` token  
+**Message routing**: ChatViewModel checks `conversation.sourcePlatform == "MATRIX"` → routes to MatrixMessageService
+
+### **Telegram (Bot API)**
+
+**Location**: `features/telegram/`
+
+```kotlin
+// TelegramApi.kt — Retrofit interface
+interface TelegramApi {
+    @GET("getMe")
+    suspend fun getMe(): BotResponse
+    
+    @GET("getUpdates")
+    suspend fun getUpdates(
+        @Query("offset") offset: Long? = null,
+        @Query("timeout") timeout: Int = 30
+    ): UpdatesResponse
+    
+    @POST("sendMessage")
+    suspend fun sendMessage(
+        @Body request: SendMessageRequest
+    ): MessageResponse
+}
+
+// TelegramService.kt — Bot API polling, sync, send
+```
+
+**Auth flow**: User creates bot via @BotFather → enters token → app verifies with /getMe → token stored  
+**Sync strategy**: Long-polling via /getUpdates with offset tracking  
+**Message routing**: ChatViewModel checks `conversation.sourcePlatform == "TELEGRAM"` → routes to TelegramService
+
+### **Discord (Bot API)**
+
+**Location**: `features/discord/`
+
+```kotlin
+// DiscordApi.kt — Retrofit interface
+interface DiscordApi {
+    @GET("users/@me")
+    suspend fun getMe(): UserResponse
+    
+    @GET("users/@me/guilds")
+    suspend fun getGuilds(): GuildsResponse
+    
+    @GET("channels/{channelId}/messages")
+    suspend fun getMessages(
+        @Path("channelId") channelId: String,
+        @Query("limit") limit: Int = 50
+    ): MessagesResponse
+    
+    @POST("channels/{channelId}/messages")
+    suspend fun sendMessage(
+        @Path("channelId") channelId: String,
+        @Body request: SendMessageRequest
+    ): MessageResponse
+}
+
+// DiscordService.kt — Bot API, guild→channel→message sync, send
+```
+
+**Auth flow**: User creates bot via Discord Developer Portal → enters token → app verifies with /users/@me → token stored  
+**Sync strategy**: REST polling — fetch guilds → channels → messages  
+**Message routing**: ChatViewModel checks `conversation.sourcePlatform == "DISCORD"` → routes to DiscordService
+
+### **Facebook Messenger (Graph API v18.0)**
+
+**Location**: `features/messenger/`
+
+```kotlin
+// FacebookApi.kt — Retrofit interface
+interface FacebookApi {
+    @GET("me")
+    suspend fun getMe(@Query("access_token") token: String): MeResponse
+    
+    @GET("me/conversations")
+    suspend fun getConversations(
+        @Query("access_token") token: String,
+        @Query("limit") limit: Int = 50,
+        @Query("after") after: String? = null
+    ): ConversationsResponse
+    
+    @GET("{conversationId}/messages")
+    suspend fun getMessages(
+        @Path("conversationId") conversationId: String,
+        @Query("access_token") token: String,
+        @Query("limit") limit: Int = 50
+    ): MessagesResponse
+    
+    @POST("me/messages")
+    suspend fun sendMessage(
+        @Query("access_token") token: String,
+        @Body request: SendMessageRequest
+    ): SendResponse
+}
+
+// MessengerService.kt — Graph API v18.0, paginated sync, send
+```
+
+**Auth flow**: User creates app via Facebook Developer Portal → enables Messenger Platform → enters Page Access Token → app verifies with /me → token stored  
+**Sync strategy**: Paginated REST — fetch conversations → messages per conversation  
+**Message routing**: ChatViewModel checks `conversation.sourcePlatform == "FACEBOOK_MESSENGER"` → routes to MessengerService
+
+### **SocialAccountsViewModel**
+
+```kotlin
+@HiltViewModel
+class SocialAccountsViewModel @Inject constructor(
+    private val socialAccountRepository: SocialAccountRepository,
+    private val matrixAuthService: MatrixAuthService,
+    private val matrixSyncService: MatrixSyncService,
+    private val telegramService: TelegramService,
+    private val discordService: DiscordService,
+    private val messengerService: MessengerService
+) : ViewModel() {
+    
+    // Platform info with supportsApi flag
+    val platforms = listOf(
+        PlatformInfo("MATRIX", "Matrix", Icons.Default.Chat, supportsApi = true),
+        PlatformInfo("TELEGRAM", "Telegram", Icons.Default.Telegram, supportsApi = true),
+        PlatformInfo("DISCORD", "Discord", Icons.Default.Gamepad, supportsApi = true),
+        PlatformInfo("FACEBOOK_MESSENGER", "Messenger", Icons.Default.Facebook, supportsApi = true),
+        PlatformInfo("SIGNAL", "Signal", Icons.Default.Security, supportsApi = false),
+        PlatformInfo("SLACK", "Slack", Icons.Default.Workspaces, supportsApi = false)
+    )
+    
+    // Login states for each platform
+    data class MatrixLoginUiState(...)
+    data class TelegramLoginUiState(...)
+    data class DiscordLoginUiState(...)
+    data class MessengerLoginUiState(...)
+    
+    // Methods: connectPlatform, disconnectPlatform, syncPlatform, deleteAccount
+}
+```
+
+### **SocialAccountsScreen**
+
+Platform cards with:
+- Connect/disconnect button
+- Sync/refresh button (when connected)
+- Login dialogs: Matrix (homeserver+username+password), Telegram (bot token), Discord (bot token), Messenger (Page Access Token)
+- Delete account confirmation
 
 ---
 
@@ -2497,9 +2658,9 @@ class MediaService @Inject constructor(
 
 ```
 app/src/main/
-├── java/com/nexussms/
-│   ├── MainActivity.kt                    # Entry point, navigation setup
-│   ├── NexusSMSApplication.kt            # App class, initialization
+├── java/com/nexusmedia/nexussms/
+│   ├── MainActivity.kt                    # Entry point, navigation, ProcessLifecycleOwner
+│   ├── NexusSMSApplication.kt            # App class, Timber, notification channels
 │   │
 │   ├── data/                              # Data Layer
 │   │   ├── converters/
@@ -2507,18 +2668,20 @@ app/src/main/
 │   │   │   └── JsonConverter.kt
 │   │   │
 │   │   ├── database/
-│   │   │   ├── NexusSMSDatabase.kt       # Room database
-│   │   │   └── Daos.kt                   # All DAOs
+│   │   │   ├── NexusSMSDatabase.kt       # Room database (v4)
+│   │   │   ├── Daos.kt                   # All DAOs (ConversationDao, MessageDao, SocialAccountDao, ContactAvatarDao, etc.)
+│   │   │   └── Migrations.kt             # v1→v2→v3→v4
 │   │   │
 │   │   ├── models/
-│   │   │   ├── Message.kt
-│   │   │   ├── Conversation.kt
+│   │   │   ├── Message.kt                # + sourceSmsId, sourcePlatform
+│   │   │   ├── Conversation.kt           # + sourcePlatform, sourceAccountId, wallpaperUrl, themeId
 │   │   │   ├── Shortcut.kt
 │   │   │   ├── Signature.kt
 │   │   │   ├── Theme.kt
 │   │   │   ├── ScheduledMessage.kt
-│   │   │   ├── SocialAccount.kt
-│   │   │   └── Reaction.kt
+│   │   │   ├── SocialAccount.kt          # platform, userId, accessToken, settings JSON
+│   │   │   ├── Reaction.kt
+│   │   │   └── ContactAvatar.kt          # Added in v4
 │   │   │
 │   │   └── repository/
 │   │       ├── MessageRepository.kt
@@ -2528,10 +2691,11 @@ app/src/main/
 │   │       ├── ThemeRepository.kt
 │   │       ├── ScheduledMessageRepository.kt
 │   │       ├── SocialAccountRepository.kt
-│   │       └── ReactionRepository.kt
+│   │       ├── ReactionRepository.kt
+│   │       └── ContactAvatarRepository.kt  # Added in v4
 │   │
 │   ├── di/                                # Dependency Injection
-│   │   └── AppModule.kt
+│   │   └── AppModule.kt                  # All providers including Matrix/Telegram/Discord/Messenger services
 │   │
 │   ├── features/                          # Feature Modules
 │   │   ├── rcs/
@@ -2540,119 +2704,94 @@ app/src/main/
 │   │   ├── shortcodes/
 │   │   │   └── ShortcodeExpansionService.kt
 │   │   │
-│   │   ├── social/
-│   │   │   ├── SocialMediaIntegrationService.kt
-│   │   │   ├── adapters/
-│   │   │   │   ├── MessagingAdapter.kt
-│   │   │   │   ├── DiscordAdapter.kt
-│   │   │   │   ├── TelegramAdapter.kt
-│   │   │   │   ├── FacebookAdapter.kt
-│   │   │   │   ├── MatrixAdapter.kt
-│   │   │   │   └── ViberAdapter.kt
-│   │   │   └── models/
-│   │   │       └── SocialMessage.kt
+│   │   ├── matrix/                        # Matrix Client-Server API
+│   │   │   ├── MatrixModels.kt
+│   │   │   ├── MatrixApi.kt              # Retrofit interface
+│   │   │   ├── MatrixClient.kt           # Singleton OkHttp + Retrofit
+│   │   │   ├── MatrixAuthService.kt      # Login, session persistence, restore
+│   │   │   ├── MatrixSyncService.kt      # Initial/incremental/per-room sync
+│   │   │   └── MatrixMessageService.kt   # Send text/image/file, upload
 │   │   │
-│   │   └── theme/
-│   │       ├── ThemeManager.kt
-│   │       ├── models/
-│   │       │   └── ThemeConfig.kt
-│   │       └── presets/
-│   │           └── BuiltInThemes.kt
+│   │   ├── telegram/                      # Telegram Bot API
+│   │   │   ├── TelegramModels.kt
+│   │   │   ├── TelegramApi.kt            # Retrofit interface
+│   │   │   └── TelegramService.kt        # Bot API polling, sync, send
+│   │   │
+│   │   ├── discord/                       # Discord Bot API
+│   │   │   ├── DiscordModels.kt
+│   │   │   ├── DiscordApi.kt             # Retrofit interface
+│   │   │   └── DiscordService.kt         # Guild→channel→message sync, send
+│   │   │
+│   │   ├── messenger/                     # Facebook Messenger Graph API
+│   │   │   ├── FacebookModels.kt
+│   │   │   ├── FacebookApi.kt            # Retrofit interface
+│   │   │   └── MessengerService.kt       # Paginated sync, send
+│   │   │
+│   │   ├── theme/
+│   │   │   └── ThemeManager.kt
+│   │   │
+│   │   └── backup/
+│   │       ├── GoogleDriveBackupService.kt
+│   │       ├── GoogleDriveClient.kt
+│   │       └── BackupWorker.kt
 │   │
-│   ├── receivers/                         # BroadcastReceivers
+│   ├── receivers/
 │   │   └── SmsReceiver.kt
 │   │
-│   ├── security/                          # Security
-│   │   ├── EncryptionManager.kt
-│   │   └── KeyManager.kt
+│   ├── security/
+│   │   └── EncryptionManager.kt          # AES-256-GCM
 │   │
-│   ├── services/                          # Services
-│   │   ├── MessageService.kt
-│   │   └── ScheduledMessageWorker.kt
+│   ├── services/
+│   │   └── MessageService.kt
 │   │
-│   ├── ui/                                # UI Layer
+│   ├── ui/
 │   │   ├── components/
-│   │   │   ├── CommonComponents.kt
-│   │   │   ├── MessageBubble.kt
-│   │   │   ├── ConversationItem.kt
-│   │   │   ├── ShortcutPreview.kt
-│   │   │   ├── EmojiPicker.kt
-│   │   │   ├── MediaPicker.kt
-│   │   │   └── ThemeColorPicker.kt
+│   │   │   ├── CommonComponents.kt       # Simple MessageBubble
+│   │   │   ├── MessageBubble.kt          # Component-level MessageBubble
+│   │   │   └── NexusAvatar.kt            # Coil + HCT tonal gradient
 │   │   │
 │   │   ├── screens/
 │   │   │   ├── MainScreen.kt
-│   │   │   ├── ConversationListScreen.kt
-│   │   │   ├── ChatDetailScreen.kt
+│   │   │   ├── ConversationListScreen.kt # + NexusAvatar, platform badge, sync button, tabs
+│   │   │   ├── ChatDetailScreen.kt       # + ChatMessageBubble, wallpaper, elevation, AnimatedVisibility
 │   │   │   ├── SettingsScreen.kt
 │   │   │   ├── ShortcutsScreen.kt
 │   │   │   ├── SignaturesScreen.kt
 │   │   │   ├── ThemesScreen.kt
 │   │   │   ├── ScheduledMessagesScreen.kt
-│   │   │   ├── SocialAccountsScreen.kt
+│   │   │   ├── SocialAccountsScreen.kt   # Platform cards, login dialogs, sync buttons
 │   │   │   ├── BackupScreen.kt
 │   │   │   ├── AppLockScreen.kt
-│   │   │   └── SecuritySettingsScreen.kt
+│   │   │   ├── SecuritySettingsScreen.kt
+│   │   │   ├── PrivacyPolicyScreen.kt
+│   │   │   └── TermsOfServiceScreen.kt
 │   │   │
 │   │   ├── theme/
-│   │   │   ├── Theme.kt                  # Material 3 theme
-│   │   │   ├── Type.kt                   # Typography
-│   │   │   └── Color.kt                  # Color definitions
+│   │   │   ├── Theme.kt                  # Material 3 + HCT/TonalPalette + LocalBubbleTheme
+│   │   │   ├── Type.kt                   # Poppins + Inter via Google Fonts
+│   │   │   └── Color.kt
 │   │   │
 │   │   └── viewmodels/
-│   │       ├── ChatViewModel.kt
-│   │       ├── ConversationListViewModel.kt
+│   │       ├── ChatViewModel.kt          # 13 deps, MATRIX/TELEGRAM/DISCORD/FACEBOOK_MESSENGER send branches
+│   │       ├── ConversationListViewModel.kt  # 7 deps, syncMatrix(), platform tabs
 │   │       ├── SettingsViewModel.kt
 │   │       ├── ShortcutsViewModel.kt
-│   │       ├── ThemesViewModel.kt
-│   │       ├── SocialAccountsViewModel.kt
+│   │       ├── SocialAccountsViewModel.kt # 6 deps, login states, sync/disconnect/delete
 │   │       ├── BackupViewModel.kt
 │   │       ├── AppLockViewModel.kt
 │   │       └── SecuritySettingsViewModel.kt
 │   │
-│   ├── features/backup/                  # Google Drive Backup
-│   │   ├── GoogleDriveBackupService.kt
-│   │   ├── GoogleDriveClient.kt
-│   │   ├── BackupWorker.kt
-│   │   └── models/
-│   │       └── BackupData.kt
-│   │
-│   ├── features/security/                # App Lock & Biometric
-│   │   ├── BiometricAuthManager.kt
-│   │   ├── AppLockManager.kt
-│   │   └── SessionManager.kt
-│   │
-│   ├── ui/components/
-│   │   ├── BiometricPrompt.kt
-│   │   ├── PINEntryDialog.kt
-│   │   ├── BackupProgressIndicator.kt
-│   │   └── LockScreenOverlay.kt
-│   │
 │   └── utils/
 │       ├── Constants.kt
 │       ├── Extensions.kt
-│       ├── DateFormatting.kt
-│       ├── PhoneNumberFormatting.kt
-│       ├── JsonUtils.kt
-│       ├── Validators.kt
-│       └── EncryptionUtils.kt
+│       └── ...
 │
-└── res/
-    ├── drawable/
-    │   ├── ic_send.xml
-    │   ├── ic_attachment.xml
-    │   ├── ic_emoji.xml
-    │   └── ... (other icons)
-    │
-    ├── values/
-    │   ├── colors.xml
-    │   ├── strings.xml
-    │   ├── styles.xml
-    │   └── dimens.xml
-    │
-    └── xml/
-        ├── backup_rules.xml
-        └── data_extraction_rules.xml
+├── res/
+│   ├── drawable/
+│   ├── values/
+│   └── xml/
+│
+└── release.keystore                       # Signing key
 ```
 
 ---
@@ -3588,15 +3727,15 @@ plugins {
 }
 
 android {
-    namespace = "com.nexussms"
-    compileSdk = 34
+    namespace = "com.nexusmedia.nexussms"
+    compileSdk = 35
     
     defaultConfig {
-        applicationId = "com.nexussms"
-        minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        applicationId = "com.nexusmedia.nexussms"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 103
+        versionName = "1.0.3"
         
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -3672,15 +3811,21 @@ dependencies {
     kapt("com.google.dagger:hilt-compiler:2.46")
     implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
     
-    // Networking
+    // Networking (Retrofit for social APIs)
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
     
     // Security
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto-ktx:1.1.0-alpha06")
+    
+    // Biometric
+    implementation("androidx.biometric:biometric:1.1.0")
     
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.8.1")
@@ -3689,11 +3834,24 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
     
-    // Image Loading
-    implementation("io.coil-kt:coil-compose:2.4.0")
+    // Image Loading (Coil)
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    
+    // Google Fonts
+    implementation("io.github.youngchaeyoung:compose-google-font:1.0.0")
+    
+    // Date/Time
+    implementation("joda-time:joda-time:2.12.5")
     
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
+    
+    // Google Drive Backup
+    implementation("com.google.android.gms:play-services-drive:17.0.0")
+    implementation("com.google.http-client:google-http-client-gson:1.43.0")
+    
+    // RCS
+    implementation("com.android.telephony:rcs-client-api:1.0.0")
     
     // Testing
     testImplementation("junit:junit:4.13.2")
