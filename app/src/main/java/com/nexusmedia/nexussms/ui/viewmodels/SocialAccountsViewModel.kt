@@ -11,6 +11,7 @@ import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
 import com.nexusmedia.nexussms.features.matrix.MatrixAuthService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.features.telegram.TelegramService
+import com.nexusmedia.nexussms.features.discord.DiscordService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +50,7 @@ sealed class SocialAccountDialogState {
     data class Delete(val account: SocialAccount) : SocialAccountDialogState()
     object MatrixLogin : SocialAccountDialogState()
     object TelegramLogin : SocialAccountDialogState()
+    object DiscordLogin : SocialAccountDialogState()
 }
 
 data class MatrixLoginUiState(
@@ -66,12 +68,20 @@ data class TelegramLoginUiState(
     val botUsername: String? = null
 )
 
+data class DiscordLoginUiState(
+    val botToken: String = "",
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val botUsername: String? = null
+)
+
 @HiltViewModel
 class SocialAccountsViewModel @Inject constructor(
     private val socialAccountRepository: SocialAccountRepository,
     private val matrixAuthService: MatrixAuthService,
     private val matrixSyncService: MatrixSyncService,
     private val telegramService: TelegramService,
+    private val discordService: DiscordService,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -95,6 +105,12 @@ class SocialAccountsViewModel @Inject constructor(
 
     private val _telegramSyncStatus = MutableStateFlow<String?>(null)
     val telegramSyncStatus: StateFlow<String?> = _telegramSyncStatus.asStateFlow()
+
+    private val _discordLoginState = MutableStateFlow(DiscordLoginUiState())
+    val discordLoginState: StateFlow<DiscordLoginUiState> = _discordLoginState.asStateFlow()
+
+    private val _discordSyncStatus = MutableStateFlow<String?>(null)
+    val discordSyncStatus: StateFlow<String?> = _discordSyncStatus.asStateFlow()
 
     init {
         socialAccountRepository.getAllAccounts()
@@ -151,6 +167,15 @@ class SocialAccountsViewModel @Inject constructor(
                 syncTelegram()
             } else {
                 _dialogState.value = SocialAccountDialogState.TelegramLogin
+            }
+            return
+        }
+        if (platformInfo.id == "DISCORD") {
+            val existing = accounts.value.find { it.platform == "DISCORD" && it.isConnected }
+            if (existing != null) {
+                syncDiscord()
+            } else {
+                _dialogState.value = SocialAccountDialogState.DiscordLogin
             }
             return
         }
@@ -268,6 +293,7 @@ class SocialAccountsViewModel @Inject constructor(
     fun clearSyncStatus() {
         _matrixSyncStatus.value = null
         _telegramSyncStatus.value = null
+        _discordSyncStatus.value = null
     }
 
     // --- Telegram ---
@@ -337,6 +363,73 @@ class SocialAccountsViewModel @Inject constructor(
         }
     }
 
+    // --- Discord ---
+
+    fun updateDiscordBotToken(value: String) {
+        _discordLoginState.value = _discordLoginState.value.copy(botToken = value, error = null)
+    }
+
+    fun submitDiscordLogin() {
+        val state = _discordLoginState.value
+        if (state.botToken.isBlank()) {
+            _discordLoginState.value = state.copy(error = "Bot token is required")
+            return
+        }
+        _discordLoginState.value = state.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            val result = discordService.connectBot(state.botToken)
+            if (result.success) {
+                _discordLoginState.value = DiscordLoginUiState()
+                _dialogState.value = SocialAccountDialogState.Hidden
+                Timber.d("Discord bot connected: %s", result.username)
+                syncDiscord()
+            } else {
+                _discordLoginState.value = _discordLoginState.value.copy(
+                    isLoading = false,
+                    error = result.error ?: "Connection failed"
+                )
+            }
+        }
+    }
+
+    fun dismissDiscordLogin() {
+        _discordLoginState.value = DiscordLoginUiState()
+        _dialogState.value = SocialAccountDialogState.Hidden
+    }
+
+    private fun syncDiscord() {
+        viewModelScope.launch {
+            _discordSyncStatus.value = "Syncing Discord messages..."
+            try {
+                val result = discordService.sync()
+                _discordSyncStatus.value = if (result.success) {
+                    if (result.messagesImported > 0) {
+                        "Imported ${result.messagesImported} Discord messages"
+                    } else {
+                        "Discord synced — no new messages"
+                    }
+                } else {
+                    "Discord sync failed: ${result.error}"
+                }
+            } catch (e: Exception) {
+                _discordSyncStatus.value = "Discord sync error: ${e.message}"
+            }
+        }
+    }
+
+    fun syncDiscordIncremental() {
+        viewModelScope.launch {
+            try {
+                val result = discordService.sync()
+                if (result.success && result.messagesImported > 0) {
+                    _discordSyncStatus.value = "New Discord messages imported"
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Discord incremental sync failed")
+            }
+        }
+    }
+
     fun disconnectPlatform(platform: String) {
         viewModelScope.launch {
             if (platform == "MATRIX") {
@@ -355,6 +448,10 @@ class SocialAccountsViewModel @Inject constructor(
             }
             if (platform == "TELEGRAM") {
                 telegramService.disconnect()
+                return@launch
+            }
+            if (platform == "DISCORD") {
+                discordService.disconnect()
                 return@launch
             }
 
@@ -385,6 +482,7 @@ class SocialAccountsViewModel @Inject constructor(
             when (account.platform) {
                 "MATRIX" -> matrixAuthService.logout()
                 "TELEGRAM" -> telegramService.disconnect()
+                "DISCORD" -> discordService.disconnect()
             }
             socialAccountRepository.deleteAccount(account)
             hideDialog()

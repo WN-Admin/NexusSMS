@@ -63,6 +63,7 @@ import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountsViewModel
 import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountDialogState
 import com.nexusmedia.nexussms.ui.viewmodels.MatrixLoginUiState
 import com.nexusmedia.nexussms.ui.viewmodels.TelegramLoginUiState
+import com.nexusmedia.nexussms.ui.viewmodels.DiscordLoginUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +78,8 @@ fun SocialAccountsScreen(
     val matrixSyncStatus by viewModel.matrixSyncStatus.collectAsState()
     val telegramLoginState by viewModel.telegramLoginState.collectAsState()
     val telegramSyncStatus by viewModel.telegramSyncStatus.collectAsState()
+    val discordLoginState by viewModel.discordLoginState.collectAsState()
+    val discordSyncStatus by viewModel.discordSyncStatus.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val connectedPlatforms = accounts.filter { it.isConnected }.map { it.platform }
@@ -90,6 +93,13 @@ fun SocialAccountsScreen(
 
     LaunchedEffect(telegramSyncStatus) {
         telegramSyncStatus?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSyncStatus()
+        }
+    }
+
+    LaunchedEffect(discordSyncStatus) {
+        discordSyncStatus?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearSyncStatus()
         }
@@ -137,6 +147,7 @@ fun SocialAccountsScreen(
                     onSync = when (platform.id) {
                         "MATRIX" -> if (isConnected) {{ viewModel.syncMatrixIncremental() }} else null
                         "TELEGRAM" -> if (isConnected) {{ viewModel.syncTelegramIncremental() }} else null
+                        "DISCORD" -> if (isConnected) {{ viewModel.syncDiscordIncremental() }} else null
                         else -> null
                     }
                 )
@@ -324,6 +335,12 @@ fun SocialAccountsScreen(
             onLogin = viewModel::submitTelegramLogin,
             onDismiss = viewModel::dismissTelegramLogin
         )
+        SocialAccountDialogState.DiscordLogin -> DiscordLoginDialog(
+            state = discordLoginState,
+            onTokenChange = viewModel::updateDiscordBotToken,
+            onLogin = viewModel::submitDiscordLogin,
+            onDismiss = viewModel::dismissDiscordLogin
+        )
         SocialAccountDialogState.Hidden -> {}
     }
 }
@@ -468,6 +485,88 @@ private fun TelegramLoginDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Connected as @$state.botUsername",
+                        color = Color(0xFF4CAF50),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (state.error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onLogin,
+                enabled = !state.isLoading && state.botToken.isNotBlank()
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text("Connect")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun DiscordLoginDialog(
+    state: DiscordLoginUiState,
+    onTokenChange: (String) -> Unit,
+    onLogin: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF5865F2)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("D", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Discord Bot")
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Enter your bot token from the Discord Developer Portal.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = state.botToken,
+                    onValueChange = onTokenChange,
+                    label = { Text("Bot Token") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    placeholder = { Text("MTIzNDU2Nzg5...") }
+                )
+                if (state.botUsername != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Connected as ${state.botUsername}",
                         color = Color(0xFF4CAF50),
                         style = MaterialTheme.typography.bodySmall
                     )

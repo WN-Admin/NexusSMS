@@ -26,6 +26,7 @@ import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.features.telegram.TelegramService
+import com.nexusmedia.nexussms.features.discord.DiscordService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -54,7 +55,8 @@ class ChatViewModel @Inject constructor(
     private val themeRepository: ThemeRepository,
     private val matrixMessageService: MatrixMessageService,
     private val matrixSyncService: MatrixSyncService,
-    private val telegramService: TelegramService
+    private val telegramService: TelegramService,
+    private val discordService: DiscordService
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -168,6 +170,17 @@ class ChatViewModel @Inject constructor(
                         val sent = telegramService.sendMessage(chatId, messageContent)
                         if (!sent) {
                             Timber.e("Telegram send failed")
+                        }
+                    }
+                    "DISCORD" -> {
+                        val channelId = _currentConversation.value?.sourceAccountId ?: ""
+                        if (channelId.isBlank()) {
+                            Timber.e("DISCORD conversation has no sourceAccountId")
+                            return@launch
+                        }
+                        val sent = discordService.sendMessage(channelId, messageContent)
+                        if (!sent) {
+                            Timber.e("Discord send failed")
                         }
                     }
                     else -> when (_selectedMessageType.value) {
