@@ -27,6 +27,7 @@ import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.features.discord.DiscordService
+import com.nexusmedia.nexussms.features.messenger.MessengerService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -56,7 +57,8 @@ class ChatViewModel @Inject constructor(
     private val matrixMessageService: MatrixMessageService,
     private val matrixSyncService: MatrixSyncService,
     private val telegramService: TelegramService,
-    private val discordService: DiscordService
+    private val discordService: DiscordService,
+    private val messengerService: MessengerService
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -181,6 +183,17 @@ class ChatViewModel @Inject constructor(
                         val sent = discordService.sendMessage(channelId, messageContent)
                         if (!sent) {
                             Timber.e("Discord send failed")
+                        }
+                    }
+                    "FACEBOOK_MESSENGER" -> {
+                        val recipientId = _currentConversation.value?.sourceAccountId ?: ""
+                        if (recipientId.isBlank()) {
+                            Timber.e("Messenger conversation has no sourceAccountId")
+                            return@launch
+                        }
+                        val sent = messengerService.sendMessage(recipientId, messageContent)
+                        if (!sent) {
+                            Timber.e("Messenger send failed")
                         }
                     }
                     else -> when (_selectedMessageType.value) {
