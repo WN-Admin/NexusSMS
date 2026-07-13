@@ -62,6 +62,7 @@ import com.nexusmedia.nexussms.ui.viewmodels.SocialPlatforms
 import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountsViewModel
 import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountDialogState
 import com.nexusmedia.nexussms.ui.viewmodels.MatrixLoginUiState
+import com.nexusmedia.nexussms.ui.viewmodels.TelegramLoginUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,12 +75,21 @@ fun SocialAccountsScreen(
     val dialogState by viewModel.dialogState.collectAsState()
     val matrixLoginState by viewModel.matrixLoginState.collectAsState()
     val matrixSyncStatus by viewModel.matrixSyncStatus.collectAsState()
+    val telegramLoginState by viewModel.telegramLoginState.collectAsState()
+    val telegramSyncStatus by viewModel.telegramSyncStatus.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val connectedPlatforms = accounts.filter { it.isConnected }.map { it.platform }
 
     LaunchedEffect(matrixSyncStatus) {
         matrixSyncStatus?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSyncStatus()
+        }
+    }
+
+    LaunchedEffect(telegramSyncStatus) {
+        telegramSyncStatus?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearSyncStatus()
         }
@@ -124,9 +134,11 @@ fun SocialAccountsScreen(
                     onConnect = { viewModel.connectPlatform(platform) },
                     onDisconnect = { viewModel.disconnectPlatform(platform.id) },
                     onDelete = { account?.let { viewModel.showDeleteDialog(it) } },
-                    onSync = if (platform.id == "MATRIX" && isConnected) {
-                        { viewModel.syncMatrixIncremental() }
-                    } else null
+                    onSync = when (platform.id) {
+                        "MATRIX" -> if (isConnected) {{ viewModel.syncMatrixIncremental() }} else null
+                        "TELEGRAM" -> if (isConnected) {{ viewModel.syncTelegramIncremental() }} else null
+                        else -> null
+                    }
                 )
             }
 
@@ -306,6 +318,12 @@ fun SocialAccountsScreen(
             onLogin = viewModel::submitMatrixLogin,
             onDismiss = viewModel::dismissMatrixLogin
         )
+        SocialAccountDialogState.TelegramLogin -> TelegramLoginDialog(
+            state = telegramLoginState,
+            onTokenChange = viewModel::updateTelegramBotToken,
+            onLogin = viewModel::submitTelegramLogin,
+            onDismiss = viewModel::dismissTelegramLogin
+        )
         SocialAccountDialogState.Hidden -> {}
     }
 }
@@ -386,6 +404,88 @@ private fun MatrixLoginDialog(
             TextButton(
                 onClick = onLogin,
                 enabled = !state.isLoading && state.username.isNotBlank() && state.password.isNotBlank()
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text("Connect")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun TelegramLoginDialog(
+    state: TelegramLoginUiState,
+    onTokenChange: (String) -> Unit,
+    onLogin: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0088CC)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("T", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Telegram Bot")
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Enter your bot token from @BotFather to connect.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = state.botToken,
+                    onValueChange = onTokenChange,
+                    label = { Text("Bot Token") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    placeholder = { Text("123456789:ABCdefGhIJKlmnOPQrSTUvwxYZ") }
+                )
+                if (state.botUsername != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Connected as @$state.botUsername",
+                        color = Color(0xFF4CAF50),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (state.error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onLogin,
+                enabled = !state.isLoading && state.botToken.isNotBlank()
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(

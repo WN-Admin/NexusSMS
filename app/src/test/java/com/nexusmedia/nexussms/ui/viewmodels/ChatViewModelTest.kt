@@ -9,6 +9,7 @@ import com.nexusmedia.nexussms.features.rcs.RcsService
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
+import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -36,6 +37,7 @@ class ChatViewModelTest {
     private val themeRepository = mockk<com.nexusmedia.nexussms.data.repository.ThemeRepository>(relaxed = true)
     private val matrixMessageService = mockk<MatrixMessageService>(relaxed = true)
     private val matrixSyncService = mockk<MatrixSyncService>(relaxed = true)
+    private val telegramService = mockk<TelegramService>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var viewModel: ChatViewModel
@@ -54,7 +56,8 @@ class ChatViewModelTest {
             contactAvatarRepository,
             themeRepository,
             matrixMessageService,
-            matrixSyncService
+            matrixSyncService,
+            telegramService
         )
     }
 
