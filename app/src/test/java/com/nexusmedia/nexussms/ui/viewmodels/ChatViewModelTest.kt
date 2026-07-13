@@ -11,6 +11,7 @@ import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.features.discord.DiscordService
+import com.nexusmedia.nexussms.features.messenger.MessengerService
 import com.nexusmedia.nexussms.security.EncryptionManager
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -40,6 +41,7 @@ class ChatViewModelTest {
     private val matrixSyncService = mockk<MatrixSyncService>(relaxed = true)
     private val telegramService = mockk<TelegramService>(relaxed = true)
     private val discordService = mockk<DiscordService>(relaxed = true)
+    private val messengerService = mockk<MessengerService>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var viewModel: ChatViewModel
@@ -60,7 +62,8 @@ class ChatViewModelTest {
             matrixMessageService,
             matrixSyncService,
             telegramService,
-            discordService
+            discordService,
+            messengerService
         )
     }
 

@@ -12,6 +12,7 @@ import com.nexusmedia.nexussms.features.matrix.MatrixAuthService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.features.discord.DiscordService
+import com.nexusmedia.nexussms.features.messenger.MessengerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +52,7 @@ sealed class SocialAccountDialogState {
     object MatrixLogin : SocialAccountDialogState()
     object TelegramLogin : SocialAccountDialogState()
     object DiscordLogin : SocialAccountDialogState()
+    object MessengerLogin : SocialAccountDialogState()
 }
 
 data class MatrixLoginUiState(
@@ -75,6 +77,13 @@ data class DiscordLoginUiState(
     val botUsername: String? = null
 )
 
+data class MessengerLoginUiState(
+    val pageToken: String = "",
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val pageName: String? = null
+)
+
 @HiltViewModel
 class SocialAccountsViewModel @Inject constructor(
     private val socialAccountRepository: SocialAccountRepository,
@@ -82,6 +91,7 @@ class SocialAccountsViewModel @Inject constructor(
     private val matrixSyncService: MatrixSyncService,
     private val telegramService: TelegramService,
     private val discordService: DiscordService,
+    private val messengerService: MessengerService,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -111,6 +121,12 @@ class SocialAccountsViewModel @Inject constructor(
 
     private val _discordSyncStatus = MutableStateFlow<String?>(null)
     val discordSyncStatus: StateFlow<String?> = _discordSyncStatus.asStateFlow()
+
+    private val _messengerLoginState = MutableStateFlow(MessengerLoginUiState())
+    val messengerLoginState: StateFlow<MessengerLoginUiState> = _messengerLoginState.asStateFlow()
+
+    private val _messengerSyncStatus = MutableStateFlow<String?>(null)
+    val messengerSyncStatus: StateFlow<String?> = _messengerSyncStatus.asStateFlow()
 
     init {
         socialAccountRepository.getAllAccounts()
@@ -176,6 +192,15 @@ class SocialAccountsViewModel @Inject constructor(
                 syncDiscord()
             } else {
                 _dialogState.value = SocialAccountDialogState.DiscordLogin
+            }
+            return
+        }
+        if (platformInfo.id == "FACEBOOK_MESSENGER") {
+            val existing = accounts.value.find { it.platform == "FACEBOOK_MESSENGER" && it.isConnected }
+            if (existing != null) {
+                syncMessenger()
+            } else {
+                _dialogState.value = SocialAccountDialogState.MessengerLogin
             }
             return
         }
@@ -294,6 +319,7 @@ class SocialAccountsViewModel @Inject constructor(
         _matrixSyncStatus.value = null
         _telegramSyncStatus.value = null
         _discordSyncStatus.value = null
+        _messengerSyncStatus.value = null
     }
 
     // --- Telegram ---
@@ -430,6 +456,73 @@ class SocialAccountsViewModel @Inject constructor(
         }
     }
 
+    // --- Facebook Messenger ---
+
+    fun updateMessengerPageToken(value: String) {
+        _messengerLoginState.value = _messengerLoginState.value.copy(pageToken = value, error = null)
+    }
+
+    fun submitMessengerLogin() {
+        val state = _messengerLoginState.value
+        if (state.pageToken.isBlank()) {
+            _messengerLoginState.value = state.copy(error = "Page access token is required")
+            return
+        }
+        _messengerLoginState.value = state.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            val result = messengerService.connectPage(state.pageToken)
+            if (result.success) {
+                _messengerLoginState.value = MessengerLoginUiState()
+                _dialogState.value = SocialAccountDialogState.Hidden
+                Timber.d("Facebook page connected: %s", result.pageName)
+                syncMessenger()
+            } else {
+                _messengerLoginState.value = _messengerLoginState.value.copy(
+                    isLoading = false,
+                    error = result.error ?: "Connection failed"
+                )
+            }
+        }
+    }
+
+    fun dismissMessengerLogin() {
+        _messengerLoginState.value = MessengerLoginUiState()
+        _dialogState.value = SocialAccountDialogState.Hidden
+    }
+
+    private fun syncMessenger() {
+        viewModelScope.launch {
+            _messengerSyncStatus.value = "Syncing Messenger conversations..."
+            try {
+                val result = messengerService.sync()
+                _messengerSyncStatus.value = if (result.success) {
+                    if (result.messagesImported > 0) {
+                        "Imported ${result.messagesImported} Messenger messages"
+                    } else {
+                        "Messenger synced — no new messages"
+                    }
+                } else {
+                    "Messenger sync failed: ${result.error}"
+                }
+            } catch (e: Exception) {
+                _messengerSyncStatus.value = "Messenger sync error: ${e.message}"
+            }
+        }
+    }
+
+    fun syncMessengerIncremental() {
+        viewModelScope.launch {
+            try {
+                val result = messengerService.sync()
+                if (result.success && result.messagesImported > 0) {
+                    _messengerSyncStatus.value = "New Messenger messages imported"
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Messenger incremental sync failed")
+            }
+        }
+    }
+
     fun disconnectPlatform(platform: String) {
         viewModelScope.launch {
             if (platform == "MATRIX") {
@@ -452,6 +545,10 @@ class SocialAccountsViewModel @Inject constructor(
             }
             if (platform == "DISCORD") {
                 discordService.disconnect()
+                return@launch
+            }
+            if (platform == "FACEBOOK_MESSENGER") {
+                messengerService.disconnect()
                 return@launch
             }
 
@@ -483,6 +580,7 @@ class SocialAccountsViewModel @Inject constructor(
                 "MATRIX" -> matrixAuthService.logout()
                 "TELEGRAM" -> telegramService.disconnect()
                 "DISCORD" -> discordService.disconnect()
+                "FACEBOOK_MESSENGER" -> messengerService.disconnect()
             }
             socialAccountRepository.deleteAccount(account)
             hideDialog()

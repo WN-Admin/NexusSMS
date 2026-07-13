@@ -64,6 +64,7 @@ import com.nexusmedia.nexussms.ui.viewmodels.SocialAccountDialogState
 import com.nexusmedia.nexussms.ui.viewmodels.MatrixLoginUiState
 import com.nexusmedia.nexussms.ui.viewmodels.TelegramLoginUiState
 import com.nexusmedia.nexussms.ui.viewmodels.DiscordLoginUiState
+import com.nexusmedia.nexussms.ui.viewmodels.MessengerLoginUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +81,8 @@ fun SocialAccountsScreen(
     val telegramSyncStatus by viewModel.telegramSyncStatus.collectAsState()
     val discordLoginState by viewModel.discordLoginState.collectAsState()
     val discordSyncStatus by viewModel.discordSyncStatus.collectAsState()
+    val messengerLoginState by viewModel.messengerLoginState.collectAsState()
+    val messengerSyncStatus by viewModel.messengerSyncStatus.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val connectedPlatforms = accounts.filter { it.isConnected }.map { it.platform }
@@ -100,6 +103,13 @@ fun SocialAccountsScreen(
 
     LaunchedEffect(discordSyncStatus) {
         discordSyncStatus?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSyncStatus()
+        }
+    }
+
+    LaunchedEffect(messengerSyncStatus) {
+        messengerSyncStatus?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearSyncStatus()
         }
@@ -148,6 +158,7 @@ fun SocialAccountsScreen(
                         "MATRIX" -> if (isConnected) {{ viewModel.syncMatrixIncremental() }} else null
                         "TELEGRAM" -> if (isConnected) {{ viewModel.syncTelegramIncremental() }} else null
                         "DISCORD" -> if (isConnected) {{ viewModel.syncDiscordIncremental() }} else null
+                        "FACEBOOK_MESSENGER" -> if (isConnected) {{ viewModel.syncMessengerIncremental() }} else null
                         else -> null
                     }
                 )
@@ -340,6 +351,12 @@ fun SocialAccountsScreen(
             onTokenChange = viewModel::updateDiscordBotToken,
             onLogin = viewModel::submitDiscordLogin,
             onDismiss = viewModel::dismissDiscordLogin
+        )
+        SocialAccountDialogState.MessengerLogin -> MessengerLoginDialog(
+            state = messengerLoginState,
+            onTokenChange = viewModel::updateMessengerPageToken,
+            onLogin = viewModel::submitMessengerLogin,
+            onDismiss = viewModel::dismissMessengerLogin
         )
         SocialAccountDialogState.Hidden -> {}
     }
@@ -585,6 +602,94 @@ private fun DiscordLoginDialog(
             TextButton(
                 onClick = onLogin,
                 enabled = !state.isLoading && state.botToken.isNotBlank()
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text("Connect")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun MessengerLoginDialog(
+    state: MessengerLoginUiState,
+    onTokenChange: (String) -> Unit,
+    onLogin: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0084FF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("M", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Facebook Messenger")
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Enter your Facebook Page Access Token to connect Messenger.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Create a Facebook App, enable Messenger Platform, and generate a Page Access Token.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = state.pageToken,
+                    onValueChange = onTokenChange,
+                    label = { Text("Page Access Token") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    placeholder = { Text("EAA...") }
+                )
+                if (state.pageName != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Connected as $state.pageName",
+                        color = Color(0xFF4CAF50),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (state.error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onLogin,
+                enabled = !state.isLoading && state.pageToken.isNotBlank()
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(
