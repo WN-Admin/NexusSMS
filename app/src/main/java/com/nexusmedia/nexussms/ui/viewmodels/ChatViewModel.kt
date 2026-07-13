@@ -134,6 +134,20 @@ class ChatViewModel @Inject constructor(
         checkForShortcutTriggers(text)
     }
 
+    fun toggleMute(conversationId: String) {
+        viewModelScope.launch {
+            val conv = conversationRepository.getConversationById(conversationId) ?: return@launch
+            conversationRepository.updateConversation(conv.copy(isMuted = !conv.isMuted))
+        }
+    }
+
+    fun toggleBlock(conversationId: String) {
+        viewModelScope.launch {
+            val conv = conversationRepository.getConversationById(conversationId) ?: return@launch
+            conversationRepository.updateConversation(conv.copy(isBlocked = !conv.isBlocked))
+        }
+    }
+
     fun sendMessage(conversationId: String, recipientPhone: String) {
         viewModelScope.launch {
             _isSending.value = true

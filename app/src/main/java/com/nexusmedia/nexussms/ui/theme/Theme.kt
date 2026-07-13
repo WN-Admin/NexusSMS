@@ -30,12 +30,12 @@ import kotlin.math.sign
 
 @Immutable
 data class BubbleTheme(
-    val sentColor: Color = Color(0xFF2196F3),
+    val sentColor: Color = Color(0xFF35AAD8),
     val receivedColor: Color = Color(0xFFE8E8E8),
     val sentTextColor: Color = Color.White,
-    val receivedTextColor: Color = Color.Black,
-    val cornerRadius: Int = 16,
-    val elevation: Float = 2f
+    val receivedTextColor: Color = Color(0xFF212121),
+    val cornerRadius: Int = 18,
+    val elevation: Float = 1f
 )
 
 val LocalBubbleTheme = compositionLocalOf { BubbleTheme() }
@@ -69,14 +69,38 @@ fun NexusSMSTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> darkColorScheme(
-            primary = Color(0xFFBB86FC), onPrimary = Color(0xFF1F1B3D),
-            secondary = Color(0xFF03DAC6), background = Color(0xFF121212),
-            surface = Color(0xFF1E1E1E), error = Color(0xFFFF6B6B)
+            primary = Color(0xFF35AAD8),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFF1A5C7A),
+            onPrimaryContainer = Color(0xFFD0E8FF),
+            secondary = Color(0xFF03DAC6),
+            onSecondary = Color.Black,
+            background = Color(0xFF282828),
+            surface = Color(0xFF303030),
+            surfaceVariant = Color(0xFF424242),
+            onSurface = Color(0xFFFFFFFF),
+            onSurfaceVariant = Color(0xFFBDBDBD),
+            outline = Color(0xFF595959),
+            outlineVariant = Color(0xFF404040),
+            error = Color(0xFFFF6B6B),
+            onError = Color.Black
         )
         else -> lightColorScheme(
-            primary = Color(0xFF2196F3), onPrimary = Color.White,
-            secondary = Color(0xFF03DAC6), background = Color(0xFFFAFAFA),
-            surface = Color.White, error = Color(0xFFB00020)
+            primary = Color(0xFF35AAD8),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFD0E8FF),
+            onPrimaryContainer = Color(0xFF001D36),
+            secondary = Color(0xFF03DAC6),
+            onSecondary = Color.Black,
+            background = Color(0xFFFFFFFF),
+            surface = Color(0xFFFAFAFA),
+            surfaceVariant = Color(0xFFF0F0F0),
+            onSurface = Color(0xFF212121),
+            onSurfaceVariant = Color(0xFF757575),
+            outline = Color(0xFFD8D8D8),
+            outlineVariant = Color(0xFFE8E8E8),
+            error = Color(0xFFB00020),
+            onError = Color.White
         )
     }
 
