@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import androidx.work.Configuration
 import androidx.hilt.work.HiltWorkerFactory
 import com.nexusmedia.nexussms.BuildConfig
+import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 import javax.inject.Inject
@@ -15,6 +16,9 @@ class NexusSMSApplication : Application(), Configuration.Provider {
 
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
+
+    @Inject
+    lateinit var scheduledMessageScheduler: ScheduledMessageScheduler
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -27,6 +31,7 @@ class NexusSMSApplication : Application(), Configuration.Provider {
             Timber.plant(Timber.DebugTree())
         }
         createNotificationChannels()
+        scheduledMessageScheduler.schedulePeriodicCheck()
     }
 
     private fun createNotificationChannels() {

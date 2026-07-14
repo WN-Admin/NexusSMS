@@ -1,5 +1,6 @@
 package com.nexusmedia.nexussms.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +35,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -200,6 +205,77 @@ fun SecuritySettingsScreen(
                 checked = settings?.disableScreenshots == true,
                 onCheckedChange = { viewModel.toggleDisableScreenshots(it) }
             )
+
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val retentionPrefs = context.getSharedPreferences("retention_prefs", Context.MODE_PRIVATE)
+            var retentionEnabled by remember { mutableStateOf(retentionPrefs.getBoolean("retention_enabled", false)) }
+            var retentionDays by remember { mutableFloatStateOf(retentionPrefs.getInt("retention_days", 0).toFloat()) }
+
+            SecuritySection(
+                title = "Data Retention"
+            )
+            SettingToggle(
+                title = "Auto-Delete Old Messages",
+                subtitle = "Automatically delete messages older than the set period",
+                checked = retentionEnabled,
+                onCheckedChange = { enabled ->
+                    retentionEnabled = enabled
+                    retentionPrefs.edit().putBoolean("retention_enabled", enabled).apply()
+                }
+            )
+            if (retentionEnabled) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Retention Period",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "1d",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Slider(
+                            value = retentionDays,
+                            onValueChange = { retentionDays = it },
+                            onValueChangeFinished = {
+                                retentionPrefs.edit().putInt("retention_days", retentionDays.toInt()).apply()
+                            },
+                            valueRange = 1f..365f,
+                            steps = 0,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = if (retentionDays.toInt() <= 0) "Off" else "${retentionDays.toInt()}d",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(50.dp)
+                        )
+                    }
+                    Text(
+                        text = "Locked messages are never deleted",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }

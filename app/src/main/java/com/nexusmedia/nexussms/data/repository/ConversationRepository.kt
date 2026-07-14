@@ -38,9 +38,14 @@ class ConversationRepository @Inject constructor(
         return conversationDao.getActivePlatforms()
     }
 
-    fun getArchivedConversations(): Flow<List<Conversation>> {
-        return conversationDao.getArchivedConversations()
-    }
+    fun getBlockedConversations(): Flow<List<Conversation>> =
+        conversationDao.getBlockedConversations()
+
+    fun getArchivedConversations(): Flow<List<Conversation>> =
+        conversationDao.getArchivedConversations()
+
+    fun searchConversations(query: String): Flow<List<Conversation>> =
+        conversationDao.searchConversations(query)
 
     fun getUnreadConversations(): Flow<List<Conversation>> {
         return conversationDao.getUnreadConversations()

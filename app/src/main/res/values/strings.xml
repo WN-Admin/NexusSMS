@@ -54,4 +54,137 @@
     <string name="error_sending_message">Error sending message</string>
     <string name="error_loading_conversations">Error loading conversations</string>
     <string name="error_invalid_phone_number">Invalid phone number</string>
+
+    <!-- Notifications -->
+    <string name="notification_reply">Reply</string>
+    <string name="notification_quick_reply">Quick Reply</string>
+    <string name="notification_mark_read">Mark read</string>
+    <string name="notification_call">Call</string>
+    <string name="quick_reply_title">Quick Reply</string>
+    <string name="notification_visibility_public">Show all on lock screen</string>
+    <string name="notification_visibility_secret">Hide on lock screen</string>
+    <string name="per_contact_notification">Per-contact notifications</string>
+    <string name="repeat_notification">Repeat until read</string>
+    <string name="notification_vibrate_pattern">Vibrate pattern</string>
+    <string name="notification_ringtone">Ringtone</string>
+    <string name="quick_reply_sent">Sent!</string>
+    <string name="quick_reply_missing_info">Unable to send: missing conversation info</string>
+    <string name="type_a_message">Type a message…</string>
+    <string name="characters">%d characters</string>
+
+    <!-- Blocklist -->
+    <string name="blocklist">Blocklist</string>
+    <string name="blocklist_empty">No blocklisted conversations. Block from the chat list or a conversation menu.</string>
+
+    <!-- Search -->
+    <string name="search_hint">Search chats and messages</string>
+    <string name="search_no_results">No results found</string>
+
+    <!-- Message actions -->
+    <string name="copy_message">Copy</string>
+    <string name="forward_message">Forward</string>
+    <string name="lock_message">Lock</string>
+    <string name="unlock_message">Unlock</string>
+    <string name="select_message">Select</string>
+    <string name="react">React</string>
+    <string name="selected_count">%d selected</string>
+    <string name="message_copied">Message copied</string>
+    <string name="send_delay_seconds">Send delay: %d seconds</string>
+    <string name="confirm_delete_messages">Delete %d selected messages?</string>
+    <string name="forward_to">Forward to</string>
+    <string name="search_conversations">Search conversations</string>
+    <string name="search_messages">Messages</string>
+    <string name="no_results_found">No results found</string>
+    <string name="conversations_section">Conversations</string>
+
+    <!-- Messaging settings -->
+    <string name="messaging_settings">Messaging Settings</string>
+    <string name="send_delay">Send delay</string>
+    <string name="group_chat_mode">Group chat mode</string>
+    <string name="your_mobile_number">Your mobile number</string>
+    <string name="mms_settings">MMS Settings</string>
+
+    <!-- Archive -->
+    <string name="archived">Archived</string>
+    <string name="archive">Archive</string>
+    <string name="unarchive">Unarchive</string>
+
+    <!-- Send Settings -->
+    <string name="send_delay_title">Send Delay</string>
+    <string name="send_delay_summary">Delay before sending (0-9 seconds)</string>
+    <string name="group_mode_mms">MMS Chat</string>
+    <string name="group_mode_sms">SMS Bulk</string>
+    <string name="group_mode_title">Group Message Mode</string>
+    <string name="mobile_number_title">Your Mobile Number</string>
+    <string name="mobile_number_summary">Used for MMS identification</string>
+
+    <!-- MMS Settings -->
+    <string name="mms_apn_title">MMS APN Name</string>
+    <string name="mms_apn_summary">Leave blank for auto-detect</string>
+    <string name="mms_size_limit_title">MMS Size Limit</string>
+    <string name="mms_wifi_fix_title">WiFi Fix for MMS</string>
+    <string name="mms_wifi_fix_summary">Temporarily disable WiFi when sending MMS</string>
+    <string name="sms_to_mms_threshold_title">SMS to MMS Threshold</string>
+    <string name="sms_to_mms_threshold_summary">Auto-convert to MMS after N parts</string>
+
+    <!-- Counts -->
+    <string name="blocked_count">%d blocked</string>
+    <string name="archived_count">%d archived</string>
+
+    <!-- Multi-select -->
+    <string name="multi_select_delete">Delete</string>
+    <string name="multi_select_mute">Mute</string>
+    <string name="multi_select_block">Block</string>
+    <string name="multi_select_archive">Archive</string>
+
+    <!-- Templates -->
+    <string name="templates">Templates</string>
+    <string name="template_name">Template Name</string>
+    <string name="template_content">Message Content</string>
+    <string name="template_category">Category</string>
+    <string name="template_new">New Template</string>
+    <string name="template_edit">Edit Template</string>
+    <string name="template_delete_confirm">Delete this template?</string>
+    <string name="template_empty">No templates yet. Create one to get started.</string>
+    <string name="template_picker_title">Pick a Template</string>
+    <string name="template_picker_empty">No templates yet. Create one in Settings > Templates.</string>
+    <string name="template_used_count">Used %d times</string>
+    <string name="template_general">General</string>
+    <string name="template_greetings">Greetings</string>
+    <string name="template_thanks">Thanks</string>
+    <string name="template_farewell">Farewell</string>
+    <string name="template_custom">Custom</string>
+
+    <!-- Smart Reply -->
+    <string name="smart_reply">Smart Reply</string>
+
+    <!-- Message Details -->
+    <string name="message_details">Message Details</string>
+    <string name="details">Details</string>
+    <string name="report_spam">Report Spam</string>
+    <string name="report_spam_confirm">Are you sure you want to report this conversation as spam? It will be blocked.</string>
+    <string name="spam_reported">Conversation blocked and reported as spam</string>
+
+    <!-- Theme Import/Export -->
+    <string name="export_theme">Export Theme</string>
+    <string name="import_theme">Import Theme</string>
+    <string name="theme_exported">Theme exported to clipboard</string>
+    <string name="theme_imported">Theme imported successfully</string>
+    <string name="theme_import_error">Invalid theme data</string>
+    <string name="paste_theme_json">Paste theme JSON below</string>
+
+    <!-- Data Retention -->
+    <string name="data_retention">Data Retention</string>
+    <string name="data_retention_summary">Automatically delete old messages</string>
+    <string name="retention_days_label">%d days</string>
+    <string name="retention_disabled">Disabled</string>
+
+    <!-- Floatification -->
+    <string name="floatification">Floatification</string>
+    <string name="floatification_summary">Show floating popup for new messages</string>
+    <string name="floatification_duration">Popup duration</string>
+    <string name="floatification_duration_value">%d seconds</string>
+
+    <!-- Link Preview -->
+    <string name="link_preview">Link Preview</string>
 </resources>

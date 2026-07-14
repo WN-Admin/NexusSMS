@@ -20,17 +20,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Shortcut
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -179,18 +182,21 @@ fun SettingsScreen(
                 SettingsItem(title = "Signatures", subtitle = "${signatures.size} signatures saved", icon = Icons.Default.EditNote) { navController.navigate("signatures") }
             }
             item { SettingsItem(title = "Scheduled Messages", subtitle = "Manage scheduled messages", icon = Icons.Default.Schedule) { navController.navigate("scheduled") } }
+            item { SettingsItem(title = "Messaging Settings", subtitle = "Send delay, group modes, MMS", icon = Icons.Default.Message) { navController.navigate("messaging_settings") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Shortcuts")
             }
             item { SettingsItem(title = "Quick Shortcuts", subtitle = "Manage shortcodes", icon = Icons.Default.Shortcut) { navController.navigate("shortcuts") } }
+            item { SettingsItem(title = "Templates", subtitle = "Pre-written message snippets", icon = Icons.Default.NoteAdd) { navController.navigate("templates") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Security & Privacy")
             }
             item { SettingsItem(title = "Security Settings", subtitle = "App lock, biometrics, privacy", icon = Icons.Default.Security) { navController.navigate("security") } }
+            item { SettingsItem(title = "Blocklist", subtitle = "Manage blocked conversations", icon = Icons.Default.Block) { navController.navigate("blocklist") } }
             item { SettingsItem(title = "Backup & Restore", subtitle = "Google Drive backup", icon = Icons.Default.Cloud) { navController.navigate("backup") } }
 
             item {

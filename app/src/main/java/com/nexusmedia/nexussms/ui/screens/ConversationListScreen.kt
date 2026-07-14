@@ -26,17 +26,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,41 +73,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.nexusmedia.nexussms.R
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.ui.components.NexusAvatar
 import com.nexusmedia.nexussms.ui.viewmodels.ConversationListViewModel
-import com.nexusmedia.nexussms.ui.viewmodels.SocialPlatforms
-
-private val AvatarColors = listOf(
-    Color(0xFF5C6BC0),
-    Color(0xFF26A69A),
-    Color(0xFFEF5350),
-    Color(0xFFAB47BC),
-    Color(0xFF42A5F5),
-    Color(0xFF66BB6A),
-    Color(0xFFFFA726),
-    Color(0xFFEC407A),
-    Color(0xFF5C6BC0),
-    Color(0xFF8D6E63),
-    Color(0xFF78909C),
-    Color(0xFF7E57C2),
-)
-
-private fun avatarGradient(name: String): Brush {
-    val hash = name.hashCode()
-    val c1 = AvatarColors[((hash % AvatarColors.size) + AvatarColors.size) % AvatarColors.size]
-    val c2 = AvatarColors[((hash / AvatarColors.size % AvatarColors.size) + AvatarColors.size) % AvatarColors.size]
-    return Brush.verticalGradient(listOf(c1, c2))
-}
 
 private val platformColors = mapOf(
     "SMS" to Color(0xFF4CAF50),
@@ -159,10 +143,14 @@ private fun formatTimestamp(timestamp: Long): String {
 fun ConversationListScreen(
     onConversationClick: (String) -> Unit = {},
     onNewConversationClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onBlocklistClick: () -> Unit = {},
+    onArchiveClick: () -> Unit = {},
     viewModel: ConversationListViewModel = hiltViewModel()
 ) {
     val conversationList by viewModel.conversationList.collectAsState()
     val pinnedConversations by viewModel.pinnedConversations.collectAsState()
+    val archivedConversations by viewModel.archivedConversations.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
@@ -170,8 +158,11 @@ fun ConversationListScreen(
     val selectedPlatform by viewModel.selectedPlatform.collectAsState()
     val availablePlatforms by viewModel.availablePlatforms.collectAsState()
     val avatarCache by viewModel.avatarCache.collectAsState()
+    val multiSelectMode by viewModel.multiSelectMode.collectAsState()
+    val selectedIds by viewModel.selectedIds.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var spamReportConversation by remember { mutableStateOf<Conversation?>(null) }
 
     val importPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -204,43 +195,77 @@ fun ConversationListScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text("Messages") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                ),
-                actions = {
-                    IconButton(onClick = { }) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = Color.White
-                        )
+            if (multiSelectMode) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.selected_count, selectedIds.size)) },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.toggleMultiSelect() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.selectAll() }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = Color.White)
+                        }
+                        IconButton(onClick = { viewModel.archiveSelected() }) {
+                            Icon(Icons.Default.Archive, contentDescription = "Archive", tint = Color.White)
+                        }
+                        IconButton(onClick = { viewModel.muteSelected() }) {
+                            Icon(Icons.Default.VolumeOff, contentDescription = "Mute", tint = Color.White)
+                        }
+                        IconButton(onClick = { viewModel.blockSelected() }) {
+                            Icon(Icons.Default.Block, contentDescription = "Block", tint = Color.White)
+                        }
+                        IconButton(onClick = { viewModel.deleteSelected() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White
+                    )
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Messages") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White
+                    ),
+                    actions = {
+                        IconButton(onClick = onSearchClick) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = Color.White
+                            )
+                        }
+                        IconButton(onClick = { viewModel.syncMatrix() }) {
+                            Icon(
+                                Icons.Default.CloudSync,
+                                contentDescription = "Sync Matrix",
+                                tint = Color.White
+                            )
+                        }
+                        IconButton(onClick = { viewModel.resyncSms() }) {
+                            Icon(
+                                Icons.Default.Sync,
+                                contentDescription = "Re-sync from device",
+                                tint = Color.White
+                            )
+                        }
                     }
-                    IconButton(onClick = { viewModel.syncMatrix() }) {
-                        Icon(
-                            Icons.Default.CloudSync,
-                            contentDescription = "Sync Matrix",
-                            tint = Color.White
-                        )
-                    }
-                    IconButton(onClick = { viewModel.resyncSms() }) {
-                        Icon(
-                            Icons.Default.Sync,
-                            contentDescription = "Re-sync from device",
-                            tint = Color.White
-                        )
-                    }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNewConversationClick,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "New Message", tint = Color.White)
+            if (!multiSelectMode) {
+                FloatingActionButton(
+                    onClick = onNewConversationClick,
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "New Message", tint = Color.White)
+                }
             }
         }
     ) { paddingValues ->
@@ -249,7 +274,7 @@ fun ConversationListScreen(
         val tabPlatforms = listOf("ALL") + availablePlatforms.distinct()
 
         Column(modifier = Modifier.padding(paddingValues)) {
-            if (tabPlatforms.size > 1) {
+            if (!multiSelectMode && tabPlatforms.size > 1) {
                 ScrollableTabRow(
                     selectedTabIndex = tabPlatforms.indexOf(selectedPlatform).coerceAtLeast(0),
                     edgePadding = 8.dp,
@@ -307,7 +332,7 @@ fun ConversationListScreen(
                     if (filteredPinned.isNotEmpty()) {
                         item {
                             Text(
-                                text = "PINNED",
+                                text = stringResource(R.string.pinned).uppercase(),
                                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
@@ -322,8 +347,15 @@ fun ConversationListScreen(
                             val normalizedPhone = conversation.participantPhoneNumbers.replace(Regex("[^+\\d]"), "")
                             SwipeableConversationItem(
                                 conversation = conversation,
-                                onClick = { onConversationClick(conversation.id) },
+                                isMultiSelectMode = multiSelectMode,
+                                isSelected = selectedIds.contains(conversation.id),
+                                onToggleSelection = { viewModel.toggleSelection(conversation.id) },
+                                onClick = {
+                                    if (multiSelectMode) viewModel.toggleSelection(conversation.id)
+                                    else onConversationClick(conversation.id)
+                                },
                                 onDeleteClick = { viewModel.deleteConversation(conversation.id) },
+                                showArchiveAction = false,
                                 showPinAction = false,
                                 onUnpinClick = { viewModel.unpinConversation(conversation.id) },
                                 onBlockClick = { viewModel.blockConversation(conversation.id) },
@@ -333,6 +365,7 @@ fun ConversationListScreen(
                                 },
                                 onCallClick = { /* TODO: launch dialer */ },
                                 onViewInfoClick = { /* TODO: show contact info */ },
+                                onReportSpam = { spamReportConversation = conversation },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
@@ -342,7 +375,7 @@ fun ConversationListScreen(
                     if (filteredAll.isNotEmpty()) {
                         item {
                             Text(
-                                text = "RECENT",
+                                text = stringResource(R.string.recent).uppercase(),
                                 modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -357,10 +390,18 @@ fun ConversationListScreen(
                             val normalizedPhone = conversation.participantPhoneNumbers.replace(Regex("[^+\\d]"), "")
                             SwipeableConversationItem(
                                 conversation = conversation,
-                                onClick = { onConversationClick(conversation.id) },
+                                isMultiSelectMode = multiSelectMode,
+                                isSelected = selectedIds.contains(conversation.id),
+                                onToggleSelection = { viewModel.toggleSelection(conversation.id) },
+                                onClick = {
+                                    if (multiSelectMode) viewModel.toggleSelection(conversation.id)
+                                    else onConversationClick(conversation.id)
+                                },
                                 onDeleteClick = { viewModel.deleteConversation(conversation.id) },
+                                showArchiveAction = true,
                                 showPinAction = true,
                                 onPinClick = { viewModel.pinConversation(conversation.id) },
+                                onArchiveClick = { viewModel.archiveConversation(conversation.id) },
                                 onBlockClick = { viewModel.blockConversation(conversation.id) },
                                 onMuteClick = {
                                     if (conversation.isMuted) viewModel.unmuteConversation(conversation.id)
@@ -368,8 +409,44 @@ fun ConversationListScreen(
                                 },
                                 onCallClick = { /* TODO: launch dialer */ },
                                 onViewInfoClick = { /* TODO: show contact info */ },
+                                onReportSpam = { spamReportConversation = conversation },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
                             )
+                        }
+                    }
+
+                    if (archivedConversations.isNotEmpty() && !multiSelectMode) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onArchiveClick)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Archive,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.archived).uppercase(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+                                Text(
+                                    text = stringResource(R.string.archived_count, archivedConversations.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -406,21 +483,62 @@ fun ConversationListScreen(
             }
         )
     }
+
+    spamReportConversation?.let { conv ->
+        AlertDialog(
+            onDismissRequest = { spamReportConversation = null },
+            title = { Text("Report Spam") },
+            text = { Text("Are you sure you want to report this conversation as spam? It will be blocked.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.blockConversation(conv.id)
+                    try {
+                        val spamPrefs = context.getSharedPreferences("spam_prefs", android.content.Context.MODE_PRIVATE)
+                        val reports = com.google.gson.Gson().fromJson(
+                            spamPrefs.getString("reports", "[]") ?: "[]",
+                            object : com.google.gson.reflect.TypeToken<MutableList<Map<String, Any>>>() {}.type
+                        ) ?: mutableListOf<Map<String, Any>>()
+                        reports.add(mapOf(
+                            "conversationId" to conv.id,
+                            "content" to conv.lastMessage,
+                            "timestamp" to System.currentTimeMillis()
+                        ))
+                        spamPrefs.edit().putString("reports", com.google.gson.Gson().toJson(reports)).apply()
+                    } catch (_: Exception) {}
+                    android.widget.Toast.makeText(context, "Conversation blocked and reported as spam", android.widget.Toast.LENGTH_SHORT).show()
+                    spamReportConversation = null
+                }) {
+                    Text("Report", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { spamReportConversation = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableConversationItem(
     conversation: Conversation,
+    isMultiSelectMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    showArchiveAction: Boolean = true,
     showPinAction: Boolean = false,
     onPinClick: (() -> Unit)? = null,
+    onArchiveClick: (() -> Unit)? = null,
     onUnpinClick: (() -> Unit)? = null,
     onBlockClick: (() -> Unit)? = null,
     onMuteClick: (() -> Unit)? = null,
     onCallClick: (() -> Unit)? = null,
     onViewInfoClick: (() -> Unit)? = null,
+    onReportSpam: (() -> Unit)? = null,
     avatarPhotoUri: String? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -428,7 +546,7 @@ private fun SwipeableConversationItem(
         confirmValueChange = { value ->
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
-                    if (showPinAction && onPinClick != null) onPinClick()
+                    if (showArchiveAction && onArchiveClick != null) onArchiveClick()
                     false
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
@@ -464,10 +582,10 @@ private fun SwipeableConversationItem(
                     else -> Alignment.CenterEnd
                 }
             ) {
-                if (dismissDirection == SwipeToDismissBoxValue.StartToEnd && showPinAction) {
+                if (dismissDirection == SwipeToDismissBoxValue.StartToEnd && showArchiveAction) {
                     Icon(
-                        Icons.Default.PushPin,
-                        contentDescription = "Pin",
+                        Icons.Default.Archive,
+                        contentDescription = "Archive",
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
@@ -482,16 +600,21 @@ private fun SwipeableConversationItem(
             }
         },
         enableDismissFromEndToStart = true,
-        enableDismissFromStartToEnd = showPinAction,
+        enableDismissFromStartToEnd = showArchiveAction,
         content = {
             ConversationItemRow(
                 conversation = conversation,
+                isMultiSelectMode = isMultiSelectMode,
+                isSelected = isSelected,
+                onToggleSelection = onToggleSelection,
                 onClick = onClick,
+                onDeleteClick = onDeleteClick,
                 onUnpinClick = onUnpinClick,
                 onBlockClick = onBlockClick,
                 onMuteClick = onMuteClick,
                 onCallClick = onCallClick,
                 onViewInfoClick = onViewInfoClick,
+                onReportSpam = onReportSpam,
                 avatarPhotoUri = avatarPhotoUri
             )
         }
@@ -527,6 +650,9 @@ private fun SwipeableConversationItem(
 @Composable
 private fun ConversationItemRow(
     conversation: Conversation,
+    isMultiSelectMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
     onClick: () -> Unit,
     onDeleteClick: () -> Unit = {},
     onUnpinClick: (() -> Unit)? = null,
@@ -534,6 +660,7 @@ private fun ConversationItemRow(
     onMuteClick: (() -> Unit)? = null,
     onCallClick: (() -> Unit)? = null,
     onViewInfoClick: (() -> Unit)? = null,
+    onReportSpam: (() -> Unit)? = null,
     avatarPhotoUri: String? = null
 ) {
     val displayName = conversation.displayName.ifBlank {
@@ -546,11 +673,27 @@ private fun ConversationItemRow(
             .fillMaxWidth()
             .combinedClickable(
                 onClick = { onClick() },
-                onLongClick = { showContextMenu = true }
+                onLongClick = {
+                    if (!isMultiSelectMode) {
+                        onToggleSelection()
+                    }
+                }
             )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isMultiSelectMode) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggleSelection() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier.padding(end = 12.dp)
+            )
+        }
+
         Box {
             NexusAvatar(
                 photoUri = avatarPhotoUri,
@@ -700,61 +843,71 @@ private fun ConversationItemRow(
             }
         }
 
-        DropdownMenu(
-            expanded = showContextMenu,
-            onDismissRequest = { showContextMenu = false }
-        ) {
-            if (onCallClick != null) {
-                DropdownMenuItem(
-                    text = { Text("Call") },
-                    onClick = { showContextMenu = false; onCallClick() },
-                    leadingIcon = { Icon(Icons.Default.Call, contentDescription = null) }
-                )
-            }
-            if (onViewInfoClick != null) {
-                DropdownMenuItem(
-                    text = { Text("View Contact") },
-                    onClick = { showContextMenu = false; onViewInfoClick() },
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(if (conversation.isMuted) "Unmute" else "Mute") },
-                onClick = {
-                    showContextMenu = false
-                    onMuteClick?.invoke()
-                },
-                leadingIcon = {
-                    Icon(
-                        if (conversation.isMuted) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                        contentDescription = null
+        if (!isMultiSelectMode) {
+            DropdownMenu(
+                expanded = showContextMenu,
+                onDismissRequest = { showContextMenu = false }
+            ) {
+                if (onCallClick != null) {
+                    DropdownMenuItem(
+                        text = { Text("Call") },
+                        onClick = { showContextMenu = false; onCallClick() },
+                        leadingIcon = { Icon(Icons.Default.Call, contentDescription = null) }
                     )
                 }
-            )
-            DropdownMenuItem(
-                text = { Text(if (conversation.isBlocked) "Unblock" else "Block") },
-                onClick = {
-                    showContextMenu = false
-                    onBlockClick?.invoke()
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Block,
-                        contentDescription = null,
-                        tint = if (conversation.isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                if (onViewInfoClick != null) {
+                    DropdownMenuItem(
+                        text = { Text("View Contact") },
+                        onClick = { showContextMenu = false; onViewInfoClick() },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
                     )
                 }
-            )
-            DropdownMenuItem(
-                text = { Text("Delete") },
-                onClick = { showContextMenu = false; onDeleteClick() },
-                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-            )
+                DropdownMenuItem(
+                    text = { Text(if (conversation.isMuted) "Unmute" else "Mute") },
+                    onClick = {
+                        showContextMenu = false
+                        onMuteClick?.invoke()
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (conversation.isMuted) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                            contentDescription = null
+                        )
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (conversation.isBlocked) "Unblock" else "Block") },
+                    onClick = {
+                        showContextMenu = false
+                        onBlockClick?.invoke()
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Block,
+                            contentDescription = null,
+                            tint = if (conversation.isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    onClick = { showContextMenu = false; onDeleteClick() },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Report Spam") },
+                    onClick = {
+                        showContextMenu = false
+                        onReportSpam?.invoke()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                )
+            }
         }
     }
 
     HorizontalDivider(
-        modifier = Modifier.padding(start = 82.dp),
+        modifier = Modifier.padding(start = if (isMultiSelectMode) 62.dp else 82.dp),
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
         thickness = 0.5.dp
     )

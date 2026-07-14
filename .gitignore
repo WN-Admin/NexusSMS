@@ -11,3 +11,4 @@ local.properties
 .DS_Store
 opencode.json
 app/release.keystore
+docs/sms_rip.md

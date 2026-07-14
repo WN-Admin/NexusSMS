@@ -35,6 +35,9 @@
     <!-- Background Services -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
+    <!-- Overlay Permission (for Floatification) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <queries>
         <package android:name="com.discord" />
         <package android:name="org.telegram.messenger" />
@@ -80,6 +83,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.nexusmedia.nexussms.ui.screens.QuickReplyActivity"
+            android:exported="false"
+            android:theme="@style/Theme.NexusSMS"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTop" />
+
         <!-- SMS Receiver -->
         <receiver
             android:name="com.nexusmedia.nexussms.receivers.SmsReceiver"
@@ -87,6 +98,19 @@
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.nexusmedia.nexussms.receivers.NotificationActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.nexusmedia.nexussms.receivers.SmsStatusReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.nexusmedia.nexussms.SMS_SENT" />
+                <action android:name="com.nexusmedia.nexussms.SMS_DELIVERED" />
             </intent-filter>
         </receiver>
 

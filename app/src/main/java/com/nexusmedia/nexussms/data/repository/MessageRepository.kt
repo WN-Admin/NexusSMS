@@ -48,4 +48,14 @@ class MessageRepository @Inject constructor(
     suspend fun getImportedSourceSmsIds(conversationId: String): List<Long> = messageDao.getImportedSourceSmsIds(conversationId)
 
     suspend fun deleteMessagesByIds(messageIds: List<String>) = messageDao.deleteMessagesByIds(messageIds)
+
+    fun searchMessages(query: String): Flow<List<Message>> = messageDao.searchMessages(query)
+
+    fun getLockedMessages(): Flow<List<Message>> = messageDao.getLockedMessages()
+
+    suspend fun setMessageLocked(messageId: String, locked: Boolean) =
+        messageDao.setMessageLocked(messageId, locked)
+
+    suspend fun deleteOldMessages(conversationId: String, cutoffTime: Long) =
+        messageDao.deleteOldMessages(conversationId, cutoffTime)
 }

@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,15 +47,26 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Forward
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Button
@@ -62,6 +74,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -96,6 +109,7 @@ import com.nexusmedia.nexussms.ui.theme.LocalBubbleTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -116,6 +130,7 @@ import java.util.Locale
 @Composable
 fun ChatDetailScreen(
     conversationId: String,
+    onNavigateToDetails: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val messages by viewModel.messages.collectAsState()
@@ -126,16 +141,32 @@ fun ChatDetailScreen(
     val shortcutSuggestions by viewModel.shortcutSuggestions.collectAsState()
     val contactAvatarUri by viewModel.contactAvatarUri.collectAsState()
     val conversationBubbleTheme by viewModel.conversationBubbleTheme.collectAsState()
+    val smartReplies by viewModel.smartReplies.collectAsState()
+    val templates by viewModel.templates.collectAsState()
+    val showTemplatePicker by viewModel.showTemplatePicker.collectAsState()
 
     val context = LocalContext.current
     var showEmojiPicker by remember { mutableStateOf(false) }
     var showStickerPicker by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var reactingMessageId by remember { mutableStateOf<String?>(null) }
     var showLocationPermissionDenied by remember { mutableStateOf(false) }
     var showAttachments by remember { mutableStateOf(false) }
     var showWallpaperPicker by remember { mutableStateOf(false) }
     var showConversationMenu by remember { mutableStateOf(false) }
+    var messageActionsMessageId by remember { mutableStateOf<String?>(null) }
+    var forwardingMessage by remember { mutableStateOf<Message?>(null) }
+    var showForwardDialog by remember { mutableStateOf(false) }
+    var showSpamReportDialog by remember { mutableStateOf(false) }
+
+    val multiSelectMode by viewModel.multiSelectMode.collectAsState()
+    val selectedMessages by viewModel.selectedMessages.collectAsState()
+    val sendDelaySeconds by viewModel.sendDelaySeconds.collectAsState()
+    val allConversations by viewModel.allConversations.collectAsState()
+
+    val detectedUrl = remember(messageText) {
+        val urlRegex = Regex("""(https?://[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.(com|org|net|io|ca|co|me|tv|gg)[^\s]*)""")
+        urlRegex.find(messageText)?.value
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -207,6 +238,56 @@ fun ChatDetailScreen(
 
     Scaffold(
         topBar = {
+            if (multiSelectMode) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = context.getString(com.nexusmedia.nexussms.R.string.selected_count, selectedMessages.size),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.exitMultiSelect() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            viewModel.copySelectedMessages()
+                            Toast.makeText(context, context.getString(com.nexusmedia.nexussms.R.string.message_copied), Toast.LENGTH_SHORT).show()
+                            viewModel.exitMultiSelect()
+                        }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color.White)
+                        }
+                        IconButton(onClick = {
+                            val firstId = selectedMessages.firstOrNull()
+                            val msg = firstId?.let { viewModel.forwardMessage(it) }
+                            if (msg != null && selectedMessages.size == 1) {
+                                forwardingMessage = msg
+                                showForwardDialog = true
+                            } else if (msg != null) {
+                                val combined = selectedMessages.mapNotNull { id -> viewModel.forwardMessage(id) }
+                                    .joinToString("\n") { it.content }
+                                forwardingMessage = msg.copy(content = combined)
+                                showForwardDialog = true
+                            }
+                            viewModel.exitMultiSelect()
+                        }) {
+                            Icon(Icons.Default.Forward, contentDescription = "Forward", tint = Color.White)
+                        }
+                        IconButton(onClick = { viewModel.lockSelectedMessages() }) {
+                            Icon(Icons.Default.Lock, contentDescription = "Lock", tint = Color.White)
+                        }
+                        IconButton(onClick = { viewModel.deleteSelectedMessages() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                        }
+                    }
+                )
+            } else {
             TopAppBar(
                 title = {
                     Row(
@@ -317,9 +398,18 @@ fun ChatDetailScreen(
                             },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Report Spam") },
+                            onClick = {
+                                showConversationMenu = false
+                                showSpamReportDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        )
                     }
                 }
             )
+            }
         }
     ) { paddingValues ->
         val effectiveBubbleTheme = conversationBubbleTheme ?: LocalBubbleTheme.current
@@ -382,11 +472,51 @@ fun ChatDetailScreen(
                         ) {
                             ChatMessageBubble(
                                 message = message,
-                                onLongClick = { reactingMessageId = message.id },
-                                reactingMessageId = reactingMessageId,
+                                onLongClick = {
+                                    if (multiSelectMode) {
+                                        viewModel.toggleMultiSelect(message.id)
+                                    } else {
+                                        messageActionsMessageId = message.id
+                                    }
+                                },
+                                onClick = {
+                                    if (multiSelectMode) {
+                                        viewModel.toggleMultiSelect(message.id)
+                                    }
+                                },
+                                isSelected = message.id in selectedMessages,
+                                multiSelectMode = multiSelectMode,
+                                messageActionsMessageId = messageActionsMessageId,
+                                onDismissMessageActions = { messageActionsMessageId = null },
+                                onCopy = {
+                                    viewModel.copyMessage(message.id)
+                                    Toast.makeText(context, context.getString(com.nexusmedia.nexussms.R.string.message_copied), Toast.LENGTH_SHORT).show()
+                                    messageActionsMessageId = null
+                                },
+                                onForward = {
+                                    forwardingMessage = message
+                                    showForwardDialog = true
+                                    messageActionsMessageId = null
+                                },
+                                onLock = {
+                                    viewModel.toggleLockMessage(message.id)
+                                    messageActionsMessageId = null
+                                },
+                                onDelete = {
+                                    viewModel.deleteMessage(message)
+                                    messageActionsMessageId = null
+                                },
+                                onEnterMultiSelect = {
+                                    viewModel.enterMultiSelect(message.id)
+                                    messageActionsMessageId = null
+                                },
                                 onReact = { messageId, emoji ->
                                     viewModel.addReaction(messageId, emoji)
-                                    reactingMessageId = null
+                                    messageActionsMessageId = null
+                                },
+                                onDetails = {
+                                    messageActionsMessageId = null
+                                    onNavigateToDetails(message.id)
                                 },
                                 avatarPhotoUri = if (message.senderPhoneNumber != "self") avatarUri else null
                             )
@@ -399,6 +529,15 @@ fun ChatDetailScreen(
                     suggestions = shortcutSuggestions,
                     onInsert = { trigger, expansion ->
                         viewModel.applyShortcutSuggestion(trigger, expansion)
+                    }
+                )
+            }
+
+            if (smartReplies.isNotEmpty() && shortcutSuggestions.isEmpty()) {
+                SmartReplyBar(
+                    suggestions = smartReplies,
+                    onSuggestionClick = { suggestion ->
+                        viewModel.applySmartReply(suggestion.text)
                     }
                 )
             }
@@ -509,6 +648,126 @@ fun ChatDetailScreen(
                 )
             }
 
+            if (showSpamReportDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSpamReportDialog = false },
+                    title = { Text("Report Spam") },
+                    text = { Text("Are you sure you want to report this conversation as spam? It will be blocked.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.toggleBlock(conversationId)
+                            val lastMsg = messages.firstOrNull()?.content ?: ""
+                            try {
+                                val spamPrefs = context.getSharedPreferences("spam_prefs", android.content.Context.MODE_PRIVATE)
+                                val reports = com.google.gson.Gson().fromJson(
+                                    spamPrefs.getString("reports", "[]") ?: "[]",
+                                    object : com.google.gson.reflect.TypeToken<MutableList<Map<String, Any>>>() {}.type
+                                ) ?: mutableListOf<Map<String, Any>>()
+                                reports.add(mapOf(
+                                    "conversationId" to conversationId,
+                                    "content" to lastMsg,
+                                    "timestamp" to System.currentTimeMillis()
+                                ))
+                                spamPrefs.edit().putString("reports", com.google.gson.Gson().toJson(reports)).apply()
+                            } catch (_: Exception) {}
+                            android.widget.Toast.makeText(context, "Conversation blocked and reported as spam", android.widget.Toast.LENGTH_SHORT).show()
+                            showSpamReportDialog = false
+                        }) {
+                            Text("Report", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSpamReportDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
+            if (showTemplatePicker) {
+                TemplatePickerDialog(
+                    templates = templates,
+                    onTemplateSelected = { template ->
+                        viewModel.applyTemplate(template)
+                    },
+                    onDismiss = { viewModel.hideTemplatePicker() }
+                )
+            }
+
+            if (showForwardDialog && forwardingMessage != null) {
+                AlertDialog(
+                    onDismissRequest = { showForwardDialog = false; forwardingMessage = null },
+                    title = { Text(context.getString(com.nexusmedia.nexussms.R.string.forward_to)) },
+                    text = {
+                        LazyColumn {
+                            items(allConversations.filter { it.id != conversationId }) { conv ->
+            AnimatedVisibility(visible = sendDelaySeconds > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Default.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = context.getString(com.nexusmedia.nexussms.R.string.send_delay_seconds, sendDelaySeconds),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.updateMessageText(forwardingMessage!!.content)
+                                            viewModel.sendMessage(conv.id, conv.participantPhoneNumbers)
+                                            showForwardDialog = false
+                                            forwardingMessage = null
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    NexusAvatar(
+                                        photoUri = null,
+                                        fallbackName = conv.displayName,
+                                        size = 36.dp
+                                    )
+                                    Column {
+                                        Text(
+                                            text = conv.displayName,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = conv.participantPhoneNumbers,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        TextButton(onClick = { showForwardDialog = false; forwardingMessage = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
             if (showAttachments && messageText.isEmpty()) {
                 Row(
                     modifier = Modifier
@@ -560,6 +819,56 @@ fun ChatDetailScreen(
                         icon = Icons.Default.Wallpaper,
                         label = "Wallpaper",
                         onClick = { showWallpaperPicker = true }
+                    )
+                    AttachmentButton(
+                        icon = Icons.Default.NoteAdd,
+                        label = "Template",
+                        onClick = { viewModel.showTemplatePicker() }
+                    )
+                }
+            }
+
+            if (detectedUrl != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AssistChip(
+                        onClick = {
+                            try {
+                                val url = if (detectedUrl.startsWith("http")) detectedUrl else "https://$detectedUrl"
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        label = {
+                            Text(
+                                text = try { java.net.URL(if (detectedUrl.startsWith("http")) detectedUrl else "https://$detectedUrl").host } catch (_: Exception) { detectedUrl },
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.AttachFile,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = detectedUrl.take(40) + if (detectedUrl.length > 40) "..." else "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -715,8 +1024,18 @@ private fun AttachmentButton(
 private fun ChatMessageBubble(
     message: Message,
     onLongClick: () -> Unit = {},
-    reactingMessageId: String? = null,
+    onClick: () -> Unit = {},
+    isSelected: Boolean = false,
+    multiSelectMode: Boolean = false,
+    messageActionsMessageId: String? = null,
+    onDismissMessageActions: () -> Unit = {},
+    onCopy: () -> Unit = {},
+    onForward: () -> Unit = {},
+    onLock: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onEnterMultiSelect: () -> Unit = {},
     onReact: (String, String) -> Unit = { _, _ -> },
+    onDetails: () -> Unit = {},
     avatarPhotoUri: String? = null
 ) {
     val isIncoming = message.senderPhoneNumber != "self"
@@ -729,6 +1048,8 @@ private fun ChatMessageBubble(
     } else {
         RoundedCornerShape(cr.dp, (cr / 4).dp.coerceAtLeast(2.dp), cr.dp, cr.dp)
     }
+
+    val selectionColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
 
     Row(
         modifier = Modifier
@@ -754,9 +1075,14 @@ private fun ChatMessageBubble(
                     .fillMaxWidth()
                     .shadow(elevation = bubbleTheme.elevation.dp, shape = bubbleShape, ambientColor = Color.Black.copy(alpha = 0.15f))
                     .clip(bubbleShape)
+                    .background(color = selectionColor)
+                    .then(
+                        if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, bubbleShape)
+                        else Modifier
+                    )
                     .background(color = bubbleColor)
                     .combinedClickable(
-                        onClick = {},
+                        onClick = onClick,
                         onLongClick = onLongClick
                     )
                     .padding(horizontal = 12.dp, vertical = 10.dp)
@@ -780,6 +1106,15 @@ private fun ChatMessageBubble(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (message.isLocked) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = "Locked",
+                                modifier = Modifier.size(12.dp),
+                                tint = textColor.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
                         Text(
                             text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(message.timestamp),
                             color = textColor.copy(alpha = 0.6f),
@@ -813,10 +1148,18 @@ private fun ChatMessageBubble(
                 }
             }
 
-            if (reactingMessageId == message.id) {
-                ReactionBar { emoji ->
-                    onReact(message.id, emoji)
-                }
+            if (messageActionsMessageId == message.id && !multiSelectMode) {
+                MessageActionsPopup(
+                    isLocked = message.isLocked,
+                    onCopy = onCopy,
+                    onForward = onForward,
+                    onLock = onLock,
+                    onDelete = onDelete,
+                    onSelect = onEnterMultiSelect,
+                    onReact = { onReact(message.id, it) },
+                    onDetails = onDetails,
+                    onDismiss = onDismissMessageActions
+                )
             }
         }
     }
@@ -840,6 +1183,106 @@ private fun ReactionBar(onReact: (String) -> Unit) {
                 style = MaterialTheme.typography.titleMedium
             )
         }
+    }
+}
+
+@Composable
+private fun MessageActionsPopup(
+    isLocked: Boolean,
+    onCopy: () -> Unit,
+    onForward: () -> Unit,
+    onLock: () -> Unit,
+    onDelete: () -> Unit,
+    onSelect: () -> Unit,
+    onReact: (String) -> Unit,
+    onDetails: () -> Unit = {},
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(4.dp)) {
+            val emojis = listOf("\uD83D\uDC4D", "\u2764\uFE0F", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                emojis.forEach { emoji ->
+                    Text(
+                        text = emoji,
+                        modifier = Modifier
+                            .clickable {
+                                onReact(emoji)
+                                onDismiss()
+                            }
+                            .padding(6.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                MessageActionChip(Icons.Default.ContentCopy, "Copy") { onCopy(); onDismiss() }
+                MessageActionChip(Icons.Default.Forward, "Forward") { onForward(); onDismiss() }
+                MessageActionChip(
+                    if (isLocked) Icons.Default.LockOpen else Icons.Default.Lock,
+                    if (isLocked) "Unlock" else "Lock"
+                ) { onLock(); onDismiss() }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                MessageActionChip(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error) { onDelete(); onDismiss() }
+                MessageActionChip(Icons.Default.SelectAll, "Select") { onSelect() }
+                MessageActionChip(Icons.Default.Info, "Details") { onDetails(); onDismiss() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MessageActionChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier.size(22.dp),
+            tint = tint
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 10.sp,
+            color = tint
+        )
     }
 }
 
@@ -969,6 +1412,104 @@ private fun StickerPicker(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
+        }
+    )
+}
+
+@Composable
+private fun SmartReplyBar(
+    suggestions: List<com.nexusmedia.nexussms.features.smartreply.SmartReplyService.SmartReplySuggestion>,
+    onSuggestionClick: (com.nexusmedia.nexussms.features.smartreply.SmartReplyService.SmartReplySuggestion) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+    ) {
+        suggestions.forEach { suggestion ->
+            Card(
+                modifier = Modifier.clickable { onSuggestionClick(suggestion) },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Text(
+                    text = suggestion.text,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TemplatePickerDialog(
+    templates: List<com.nexusmedia.nexussms.data.models.Template>,
+    onTemplateSelected: (com.nexusmedia.nexussms.data.models.Template) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pick a Template") },
+        text = {
+            if (templates.isEmpty()) {
+                Text(
+                    "No templates yet. Create one in Settings > Templates.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn {
+                    val grouped = templates.groupBy { it.category }
+                    grouped.forEach { (category, categoryTemplates) ->
+                        item {
+                            Text(
+                                text = category.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+                        }
+                        items(categoryTemplates) { template ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .clickable { onTemplateSelected(template) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = template.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = template.content,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }
