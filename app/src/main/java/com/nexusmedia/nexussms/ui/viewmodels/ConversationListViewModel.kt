@@ -37,6 +37,12 @@ class ConversationListViewModel @Inject constructor(
     private val _pinnedConversations = MutableStateFlow<List<Conversation>>(emptyList())
     val pinnedConversations: StateFlow<List<Conversation>> = _pinnedConversations.asStateFlow()
 
+    private val _blockedConversations = MutableStateFlow<List<Conversation>>(emptyList())
+    val blockedConversations: StateFlow<List<Conversation>> = _blockedConversations.asStateFlow()
+
+    private val _archivedConversations = MutableStateFlow<List<Conversation>>(emptyList())
+    val archivedConversations: StateFlow<List<Conversation>> = _archivedConversations.asStateFlow()
+
     private val _selectedConversation = MutableStateFlow<Conversation?>(null)
     val selectedConversation: StateFlow<Conversation?> = _selectedConversation.asStateFlow()
 
@@ -61,6 +67,12 @@ class ConversationListViewModel @Inject constructor(
     private val _avatarCache = MutableStateFlow<Map<String, String?>>(emptyMap())
     val avatarCache: StateFlow<Map<String, String?>> = _avatarCache.asStateFlow()
 
+    private val _multiSelectMode = MutableStateFlow(false)
+    val multiSelectMode: StateFlow<Boolean> = _multiSelectMode.asStateFlow()
+
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
+
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("nexus_sms_prefs", Context.MODE_PRIVATE)
     }
@@ -75,6 +87,14 @@ class ConversationListViewModel @Inject constructor(
 
         conversationRepository.getPinnedConversations()
             .onEach { _pinnedConversations.value = it }
+            .launchIn(viewModelScope)
+
+        conversationRepository.getBlockedConversations()
+            .onEach { _blockedConversations.value = it }
+            .launchIn(viewModelScope)
+
+        conversationRepository.getArchivedConversations()
+            .onEach { _archivedConversations.value = it }
             .launchIn(viewModelScope)
 
         conversationRepository.getActivePlatforms()
@@ -154,6 +174,93 @@ class ConversationListViewModel @Inject constructor(
             if (conversation != null) {
                 conversationRepository.updateConversation(conversation.copy(isBlocked = false))
             }
+        }
+    }
+
+    fun archiveConversation(conversationId: String) {
+        viewModelScope.launch {
+            val conversation = conversationRepository.getConversationById(conversationId)
+            if (conversation != null) {
+                conversationRepository.updateConversation(conversation.copy(isArchived = true))
+            }
+        }
+    }
+
+    fun unarchiveConversation(conversationId: String) {
+        viewModelScope.launch {
+            val conversation = conversationRepository.getConversationById(conversationId)
+            if (conversation != null) {
+                conversationRepository.updateConversation(conversation.copy(isArchived = false))
+            }
+        }
+    }
+
+    fun toggleMultiSelect() {
+        _multiSelectMode.value = !_multiSelectMode.value
+        if (!_multiSelectMode.value) {
+            _selectedIds.value = emptySet()
+        }
+    }
+
+    fun toggleSelection(conversationId: String) {
+        _selectedIds.value = _selectedIds.value.toMutableSet().also {
+            if (it.contains(conversationId)) it.remove(conversationId) else it.add(conversationId)
+        }
+        if (_selectedIds.value.isEmpty()) {
+            _multiSelectMode.value = false
+        }
+    }
+
+    fun selectAll() {
+        _selectedIds.value = getFilteredConversations().map { it.id }.toSet()
+    }
+
+    fun deleteSelected() {
+        viewModelScope.launch {
+            _selectedIds.value.forEach { id ->
+                conversationRepository.deleteConversationById(id)
+            }
+            _selectedIds.value = emptySet()
+            _multiSelectMode.value = false
+        }
+    }
+
+    fun blockSelected() {
+        viewModelScope.launch {
+            _selectedIds.value.forEach { id ->
+                val conversation = conversationRepository.getConversationById(id)
+                if (conversation != null) {
+                    conversationRepository.updateConversation(conversation.copy(isBlocked = true))
+                }
+            }
+            _selectedIds.value = emptySet()
+            _multiSelectMode.value = false
+        }
+    }
+
+    fun muteSelected() {
+        viewModelScope.launch {
+            _selectedIds.value.forEach { id ->
+                val conversation = conversationRepository.getConversationById(id)
+                if (conversation != null) {
+                    conversationRepository.updateConversation(conversation.copy(isMuted = true))
+                }
+            }
+            _selectedIds.value = emptySet()
+            _multiSelectMode.value = false
+        }
+    }
+
+    fun archiveSelected() {
+        viewModelScope.launch {
+            _selectedIds.value.forEach { id ->
+                val conversation = conversationRepository.getConversationById(id)
+                if (conversation != null) {
+                    conversationRepository.updateConversation(conversation.copy(isArchived = true))
+                }
+            }
+            _selectedIds.value = emptySet()
+            _multiSelectMode.value = false
         }
     }
 

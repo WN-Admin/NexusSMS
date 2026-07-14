@@ -34,6 +34,10 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
+    companion object {
+        const val EXTRA_OPEN_CONVERSATION_ID = "extra_open_conversation_id"
+    }
+
     @Inject lateinit var appSecuritySettingsDao: AppSecuritySettingsDao
     @Inject lateinit var biometricAuthManager: BiometricAuthManager
     @Inject lateinit var sessionManager: SessionManager

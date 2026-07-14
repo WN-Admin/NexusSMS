@@ -1,5 +1,9 @@
 package com.nexusmedia.nexussms.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -23,6 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +37,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,10 +46,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,11 +61,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.nexusmedia.nexussms.data.models.Theme
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.theme.ThemeManager
 import com.nexusmedia.nexussms.features.theme.ThemePreference
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,10 +80,13 @@ import javax.inject.Inject
 sealed class ThemeDialogState {
     data object Hidden : ThemeDialogState()
     data class Delete(val theme: Theme) : ThemeDialogState()
+    data class Import(val json: String = "") : ThemeDialogState()
+    data class Export(val theme: Theme) : ThemeDialogState()
 }
 
 @HiltViewModel
 class ThemesViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val themeRepository: ThemeRepository,
     private val themeManager: ThemeManager,
     private val themePreference: ThemePreference
@@ -122,6 +139,14 @@ class ThemesViewModel @Inject constructor(
         _dialogState.value = ThemeDialogState.Delete(theme)
     }
 
+    fun showExportDialog(theme: Theme) {
+        _dialogState.value = ThemeDialogState.Export(theme)
+    }
+
+    fun showImportDialog() {
+        _dialogState.value = ThemeDialogState.Import()
+    }
+
     fun hideDialog() {
         _dialogState.value = ThemeDialogState.Hidden
     }
@@ -130,6 +155,72 @@ class ThemesViewModel @Inject constructor(
         viewModelScope.launch {
             themeRepository.deleteTheme(theme)
             hideDialog()
+        }
+    }
+
+    fun exportTheme(theme: Theme) {
+        val map = mapOf(
+            "name" to theme.name,
+            "primaryColor" to theme.primaryColor,
+            "secondaryColor" to theme.secondaryColor,
+            "backgroundColor" to theme.backgroundColor,
+            "surfaceColor" to theme.surfaceColor,
+            "textColor" to theme.textColor,
+            "bubbleColorSent" to theme.bubbleColorSent,
+            "bubbleColorReceived" to theme.bubbleColorReceived,
+            "bubbleTextColorSent" to theme.bubbleTextColorSent,
+            "bubbleTextColorReceived" to theme.bubbleTextColorReceived,
+            "bubbleCornerRadius" to theme.bubbleCornerRadius,
+            "bubbleElevation" to theme.bubbleElevation,
+            "bubbleStyle" to theme.bubbleStyle,
+            "isDarkMode" to theme.isDarkMode,
+            "textColorSecondary" to theme.textColorSecondary,
+            "errorColor" to theme.errorColor,
+            "fontFamily" to theme.fontFamily
+        )
+        val json = Gson().toJson(map)
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Theme JSON", json)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "Theme exported to clipboard", Toast.LENGTH_SHORT).show()
+        hideDialog()
+    }
+
+    fun importTheme(json: String) {
+        try {
+            val type = object : TypeToken<Map<String, Any>>() {}.type
+            val map: Map<String, Any> = Gson().fromJson(json, type)
+
+            val theme = Theme(
+                name = (map["name"] as? String) ?: "Imported Theme",
+                isCustom = true,
+                isDefault = false,
+                primaryColor = (map["primaryColor"] as? String) ?: "#35AAD8",
+                secondaryColor = (map["secondaryColor"] as? String) ?: "#35AAD8",
+                backgroundColor = (map["backgroundColor"] as? String) ?: "#282828",
+                surfaceColor = (map["surfaceColor"] as? String) ?: "#303030",
+                textColor = (map["textColor"] as? String) ?: "#FFFFFF",
+                textColorSecondary = (map["textColorSecondary"] as? String) ?: "#BDBDBD",
+                bubbleColorSent = (map["bubbleColorSent"] as? String) ?: "#35AAD8",
+                bubbleColorReceived = (map["bubbleColorReceived"] as? String) ?: "#303030",
+                bubbleTextColorSent = (map["bubbleTextColorSent"] as? String) ?: "#FFFFFF",
+                bubbleTextColorReceived = (map["bubbleTextColorReceived"] as? String) ?: "#FFFFFF",
+                bubbleCornerRadius = (map["bubbleCornerRadius"] as? Double)?.toInt() ?: 16,
+                bubbleElevation = (map["bubbleElevation"] as? Double)?.toFloat() ?: 4f,
+                bubbleStyle = (map["bubbleStyle"] as? String) ?: "ROUNDED",
+                isDarkMode = (map["isDarkMode"] as? Boolean) ?: true,
+                errorColor = (map["errorColor"] as? String) ?: "#B00020",
+                fontFamily = (map["fontFamily"] as? String) ?: "Inter"
+            )
+
+            viewModelScope.launch {
+                themeRepository.insertTheme(theme)
+                applyTheme(theme)
+                Toast.makeText(context, "Theme imported successfully", Toast.LENGTH_SHORT).show()
+                hideDialog()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Invalid theme data", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -203,6 +294,15 @@ fun ThemesScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { viewModel.showImportDialog() }) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = "Import Theme",
+                            tint = Color.White
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
@@ -257,7 +357,8 @@ fun ThemesScreen(
                             isCustom = false,
                             onApply = { viewModel.applyTheme(theme) },
                             onLongPress = {},
-                            onDelete = {}
+                            onDelete = {},
+                            onExport = { viewModel.showExportDialog(theme) }
                         )
                     }
                 }
@@ -273,7 +374,8 @@ fun ThemesScreen(
                             isCustom = true,
                             onApply = { viewModel.applyTheme(theme) },
                             onLongPress = { viewModel.showDeleteDialog(theme) },
-                            onDelete = { viewModel.showDeleteDialog(theme) }
+                            onDelete = { viewModel.showDeleteDialog(theme) },
+                            onExport = { viewModel.showExportDialog(theme) }
                         )
                     }
                 }
@@ -317,6 +419,60 @@ fun ThemesScreen(
                 }
             }
         )
+        is ThemeDialogState.Export -> AlertDialog(
+            onDismissRequest = { viewModel.hideDialog() },
+            title = { Text("Export Theme") },
+            text = { Text("Copy \"${state.theme.name}\" JSON to clipboard?") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.exportTheme(state.theme) }) {
+                    Text("Export")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideDialog() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+        is ThemeDialogState.Import -> {
+            var importJson by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { viewModel.hideDialog() },
+                title = { Text("Import Theme") },
+                text = {
+                    Column {
+                        Text(
+                            "Paste theme JSON below",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = importJson,
+                            onValueChange = { importJson = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(150.dp),
+                            placeholder = { Text("{\"name\": \"...\", ...}") },
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { viewModel.importTheme(importJson) },
+                        enabled = importJson.isNotBlank()
+                    ) {
+                        Text("Import")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.hideDialog() }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
         ThemeDialogState.Hidden -> { /* no dialog */ }
     }
 }
@@ -329,7 +485,8 @@ private fun ThemePreviewCard(
     isCustom: Boolean,
     onApply: () -> Unit,
     onLongPress: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onExport: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -379,6 +536,19 @@ private fun ThemePreviewCard(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
+                }
+                if (!isActive) {
+                    IconButton(
+                        onClick = onExport,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = "Export",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
                 if (isCustom && !isActive) {
                     IconButton(

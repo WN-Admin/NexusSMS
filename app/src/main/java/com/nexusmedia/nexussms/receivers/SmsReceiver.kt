@@ -8,31 +8,30 @@ import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
+import com.nexusmedia.nexussms.features.notifications.PerContactNotificationSettings
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.services.SmsNotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class SmsReceiver : BroadcastReceiver() {
 
-    @Inject
-    lateinit var messageRepository: MessageRepository
-
-    @Inject
-    lateinit var conversationRepository: ConversationRepository
-
-    @Inject
-    lateinit var encryptionManager: EncryptionManager
+    @Inject lateinit var messageRepository: MessageRepository
+    @Inject lateinit var conversationRepository: ConversationRepository
+    @Inject lateinit var encryptionManager: EncryptionManager
+    @Inject lateinit var smsNotificationHelper: SmsNotificationHelper
+    @Inject lateinit var perContactNotificationSettings: PerContactNotificationSettings
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val smsMessages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
 
-        // Use goAsync() so Android keeps us alive past onReceive() while we hit the DB.
         val pendingResult = goAsync()
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -49,23 +48,38 @@ class SmsReceiver : BroadcastReceiver() {
                         rawBody
                     }
 
-                    // Look up or create the conversation.
-                    val conversation = conversationRepository.findConversationWithParticipant(senderPhoneNumber)
-                    val conversationId = if (conversation == null) {
+                    val existing = conversationRepository.findConversationWithParticipant(senderPhoneNumber)
+                    val conversationId: String
+                    val conversationForNotify: Conversation
+
+                    if (existing == null) {
                         val newConversation = Conversation(
                             participantPhoneNumbers = senderPhoneNumber,
                             displayName = senderPhoneNumber,
                             lastMessage = messageBody,
-                            lastMessageTime = timestamp
+                            lastMessageTime = timestamp,
+                            unreadCount = 1
                         )
                         conversationRepository.insertConversation(newConversation)
-                        newConversation.id
+                        conversationId = newConversation.id
+                        conversationForNotify = newConversation
                     } else {
-                        conversation.id
+                        conversationId = existing.id
+                        if (existing.isBlocked) {
+                            continue
+                        }
+                        val updated = existing.copy(
+                            lastMessage = messageBody,
+                            lastMessageTime = timestamp,
+                            unreadCount = existing.unreadCount + 1
+                        )
+                        conversationRepository.updateConversation(updated)
+                        conversationForNotify = updated
                     }
 
-                    // Save the inbound message.
+                    val messageId = UUID.randomUUID().toString()
                     val message = Message(
+                        id = messageId,
                         conversationId = conversationId,
                         senderPhoneNumber = senderPhoneNumber,
                         recipientPhoneNumber = "self",
@@ -78,15 +92,17 @@ class SmsReceiver : BroadcastReceiver() {
                     )
                     messageRepository.insertMessage(message)
 
-                    // Update conversation metadata.
-                    val current = conversationRepository.getConversationById(conversationId)
-                    if (current != null) {
-                        conversationRepository.updateConversation(
-                            current.copy(
-                                lastMessage = messageBody,
-                                lastMessageTime = timestamp,
-                                unreadCount = current.unreadCount + 1
-                            )
+                    val perContactPrivacy = perContactNotificationSettings.getPrivacyLevel(conversationId)
+                    if (perContactPrivacy == PerContactNotificationSettings.PRIVACY_NONE) {
+                        continue
+                    }
+
+                    if (!conversationForNotify.isBlocked && !conversationForNotify.isMuted) {
+                        smsNotificationHelper.showIncomingMessageNotification(
+                            conversation = conversationForNotify,
+                            senderPhone = senderPhoneNumber,
+                            messageBody = messageBody,
+                            messageId = messageId
                         )
                     }
                 }

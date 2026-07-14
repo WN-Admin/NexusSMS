@@ -3,6 +3,8 @@ package com.nexusmedia.nexussms.ui.viewmodels
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -28,6 +30,10 @@ import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
 import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.features.discord.DiscordService
 import com.nexusmedia.nexussms.features.messenger.MessengerService
+import com.nexusmedia.nexussms.features.messaging.SimSelector
+import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
+import com.nexusmedia.nexussms.data.models.Template
+import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -58,7 +64,10 @@ class ChatViewModel @Inject constructor(
     private val matrixSyncService: MatrixSyncService,
     private val telegramService: TelegramService,
     private val discordService: DiscordService,
-    private val messengerService: MessengerService
+    private val messengerService: MessengerService,
+    private val simSelector: SimSelector,
+    private val smartReplyService: SmartReplyService,
+    private val templateRepository: TemplateRepository
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -84,6 +93,18 @@ class ChatViewModel @Inject constructor(
 
     private val _conversationBubbleTheme = MutableStateFlow<BubbleTheme?>(null)
     val conversationBubbleTheme: StateFlow<BubbleTheme?> = _conversationBubbleTheme.asStateFlow()
+
+    private val _allConversations = MutableStateFlow<List<Conversation>>(emptyList())
+    val allConversations: StateFlow<List<Conversation>> = _allConversations.asStateFlow()
+
+    private val _smartReplies = MutableStateFlow<List<SmartReplyService.SmartReplySuggestion>>(emptyList())
+    val smartReplies: StateFlow<List<SmartReplyService.SmartReplySuggestion>> = _smartReplies.asStateFlow()
+
+    private val _templates = MutableStateFlow<List<Template>>(emptyList())
+    val templates: StateFlow<List<Template>> = _templates.asStateFlow()
+
+    private val _showTemplatePicker = MutableStateFlow(false)
+    val showTemplatePicker: StateFlow<Boolean> = _showTemplatePicker.asStateFlow()
 
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
@@ -119,8 +140,17 @@ class ChatViewModel @Inject constructor(
             .launchIn(viewModelScope)
 
         messagesJob = messageRepository.getConversationMessages(conversationId)
-            .onEach { msgs -> _messages.value = msgs }
+            .onEach { msgs ->
+                _messages.value = msgs
+                generateSmartReplies(msgs)
+            }
             .launchIn(viewModelScope)
+
+        viewModelScope.launch {
+            conversationRepository.getAllConversations()
+                .onEach { list -> _allConversations.value = list }
+                .launchIn(viewModelScope)
+        }
 
         if (_currentConversation.value?.sourcePlatform == "MATRIX") {
             viewModelScope.launch {
@@ -229,7 +259,9 @@ class ChatViewModel @Inject constructor(
                         messageRepository.insertMessage(message)
 
                         try {
-                            val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val smsManager: SmsManager = _selectedSim.value?.let { sim ->
+                                simSelector.getSmsManagerForSim(sim)
+                            } ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                 context.getSystemService(SmsManager::class.java)
                             } else {
                                 @Suppress("DEPRECATION")
@@ -322,7 +354,9 @@ class ChatViewModel @Inject constructor(
                             )
                             messageRepository.insertMessage(fallbackMessage)
                             try {
-                                val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                val smsManager: SmsManager = _selectedSim.value?.let { sim ->
+                                    simSelector.getSmsManagerForSim(sim)
+                                } ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                     context.getSystemService(SmsManager::class.java)
                                 } else {
                                     @Suppress("DEPRECATION")
@@ -384,8 +418,108 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun copyMessage(messageId: String) {
+        val msg = _messages.value.find { it.id == messageId } ?: return
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("message", msg.content)
+        clipboard.setPrimaryClip(clip)
+    }
+
+    fun toggleLockMessage(messageId: String) {
+        viewModelScope.launch {
+            val msg = messageRepository.getMessageById(messageId) ?: return@launch
+            messageRepository.setMessageLocked(messageId, !msg.isLocked)
+        }
+    }
+
+    fun forwardMessage(messageId: String): Message? {
+        return _messages.value.find { it.id == messageId }
+    }
+
+    private val _selectedMessages = MutableStateFlow<Set<String>>(emptySet())
+    val selectedMessages: StateFlow<Set<String>> = _selectedMessages.asStateFlow()
+
+    private val _multiSelectMode = MutableStateFlow(false)
+    val multiSelectMode: StateFlow<Boolean> = _multiSelectMode.asStateFlow()
+
+    fun toggleMultiSelect(messageId: String) {
+        val current = _selectedMessages.value.toMutableSet()
+        if (current.contains(messageId)) {
+            current.remove(messageId)
+        } else {
+            current.add(messageId)
+        }
+        _selectedMessages.value = current
+        _multiSelectMode.value = current.isNotEmpty()
+    }
+
+    fun enterMultiSelect(messageId: String) {
+        _selectedMessages.value = setOf(messageId)
+        _multiSelectMode.value = true
+    }
+
+    fun exitMultiSelect() {
+        _selectedMessages.value = emptySet()
+        _multiSelectMode.value = false
+    }
+
+    fun deleteSelectedMessages() {
+        viewModelScope.launch {
+            val ids = _selectedMessages.value.toList()
+            messageRepository.deleteMessagesByIds(ids)
+            exitMultiSelect()
+        }
+    }
+
+    fun lockSelectedMessages() {
+        viewModelScope.launch {
+            _selectedMessages.value.forEach { id ->
+                messageRepository.setMessageLocked(id, true)
+            }
+            exitMultiSelect()
+        }
+    }
+
+    private val _sendDelaySeconds = MutableStateFlow(0)
+    val sendDelaySeconds: StateFlow<Int> = _sendDelaySeconds.asStateFlow()
+
+    fun setSendDelay(seconds: Int) {
+        _sendDelaySeconds.value = seconds.coerceIn(0, 9)
+    }
+
+    fun copySelectedMessages() {
+        val texts = _messages.value
+            .filter { it.id in _selectedMessages.value }
+            .joinToString("\n") { it.content }
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("messages", texts)
+        clipboard.setPrimaryClip(clip)
+    }
+
     private val _pendingAttachments = MutableStateFlow<List<String>>(emptyList())
     val pendingAttachments: StateFlow<List<String>> = _pendingAttachments.asStateFlow()
+
+    private val _availableSims = MutableStateFlow<List<SimSelector.SimInfo>>(emptyList())
+    val availableSims: StateFlow<List<SimSelector.SimInfo>> = _availableSims.asStateFlow()
+
+    private val _selectedSim = MutableStateFlow<SimSelector.SimInfo?>(null)
+    val selectedSim: StateFlow<SimSelector.SimInfo?> = _selectedSim.asStateFlow()
+
+    init {
+        loadAvailableSims()
+    }
+
+    private fun loadAvailableSims() {
+        val sims = simSelector.getAvailableSims()
+        _availableSims.value = sims
+        if (sims.size > 1 && _selectedSim.value == null) {
+            _selectedSim.value = sims.first()
+        }
+    }
+
+    fun selectSim(sim: SimSelector.SimInfo) {
+        _selectedSim.value = sim
+    }
 
     fun attachFile(uri: String) {
         viewModelScope.launch {
@@ -407,6 +541,13 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val conv = _currentConversation.value ?: return@launch
             conversationRepository.updateConversation(conv.copy(wallpaperUrl = url))
+        }
+    }
+
+    fun sendGifAsMessage(conversationId: String, recipientPhone: String, gifText: String) {
+        viewModelScope.launch {
+            _messageText.value = gifText
+            sendMessage(conversationId, recipientPhone)
         }
     }
 
@@ -461,6 +602,45 @@ class ChatViewModel @Inject constructor(
             _messageText.value = prefix + expansion
         }
         _shortcutSuggestions.value = emptyList()
+    }
+
+    private fun generateSmartReplies(messages: List<Message>) {
+        val lastIncoming = messages.lastOrNull { it.senderPhoneNumber != "self" }
+        if (lastIncoming != null) {
+            _smartReplies.value = smartReplyService.getSuggestions(lastIncoming.content, isIncoming = true)
+        } else {
+            _smartReplies.value = emptyList()
+        }
+    }
+
+    fun applySmartReply(text: String) {
+        _messageText.value = text
+        _smartReplies.value = emptyList()
+    }
+
+    fun loadTemplates() {
+        viewModelScope.launch {
+            templateRepository.getAllTemplates()
+                .onEach { _templates.value = it }
+                .launchIn(viewModelScope)
+        }
+    }
+
+    fun showTemplatePicker() {
+        loadTemplates()
+        _showTemplatePicker.value = true
+    }
+
+    fun hideTemplatePicker() {
+        _showTemplatePicker.value = false
+    }
+
+    fun applyTemplate(template: Template) {
+        _messageText.value = template.content
+        viewModelScope.launch {
+            templateRepository.incrementUsage(template.id)
+        }
+        _showTemplatePicker.value = false
     }
 
     companion object {

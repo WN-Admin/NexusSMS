@@ -14,7 +14,14 @@ import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
 import com.nexusmedia.nexussms.data.repository.ShortcutRepository
 import com.nexusmedia.nexussms.data.repository.SignatureRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
+import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
+import com.nexusmedia.nexussms.data.database.TemplateDao
+import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
+import com.nexusmedia.nexussms.features.mms.MmsHelper
+import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
+import com.nexusmedia.nexussms.services.SmsNotificationHelper
+import com.nexusmedia.nexussms.services.SmsSender
 import com.nexusmedia.nexussms.features.security.AppLockManager
 import com.nexusmedia.nexussms.features.security.BiometricAuthManager
 import com.nexusmedia.nexussms.features.security.SessionManager
@@ -68,6 +75,16 @@ object AppModule {
     @Singleton
     fun provideContactAvatarRepository(contactAvatarDao: com.nexusmedia.nexussms.data.database.ContactAvatarDao): ContactAvatarRepository =
         ContactAvatarRepository(contactAvatarDao)
+
+    @Provides
+    @Singleton
+    fun provideTemplateDao(database: NexusSMSDatabase): TemplateDao =
+        database.templateDao()
+
+    @Provides
+    @Singleton
+    fun provideTemplateRepository(templateDao: TemplateDao): TemplateRepository =
+        TemplateRepository(templateDao)
 
     // --- Repositories ---
 
@@ -129,6 +146,9 @@ object AppModule {
         @ApplicationContext context: Context,
         appSecuritySettingsDao: AppSecuritySettingsDao
     ): BiometricAuthManager = BiometricAuthManager(context, appSecuritySettingsDao)
+
+    // MessagingPreferences, MmsHelper, SmsSender, SmsNotificationHelper, ScheduledMessageScheduler
+    // use @Inject constructors — resolved by Hilt automatically.
 
     @Provides
     @Singleton

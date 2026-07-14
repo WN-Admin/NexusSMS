@@ -4,12 +4,12 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.nexusmedia.nexussms.data.models.Message
-import com.nexusmedia.nexussms.data.repository.MessageRepository
+import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import timber.log.Timber
 import java.util.Calendar
 
 @HiltWorker
@@ -17,7 +17,8 @@ class ScheduledMessageWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val scheduledMessageRepository: ScheduledMessageRepository,
-    private val messageRepository: MessageRepository
+    private val conversationRepository: ConversationRepository,
+    private val smsSender: SmsSender
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -26,49 +27,61 @@ class ScheduledMessageWorker @AssistedInject constructor(
             val nowTime = System.currentTimeMillis()
 
             for (scheduledMessage in scheduledMessages) {
-                if (scheduledMessage.scheduledTime <= nowTime) {
-                    val message = Message(
-                        conversationId = scheduledMessage.conversationId,
-                        senderPhoneNumber = "self",
-                        recipientPhoneNumber = scheduledMessage.recipientPhoneNumber,
-                        content = scheduledMessage.content,
-                        timestamp = System.currentTimeMillis(),
-                        type = "TEXT",
-                        status = "SENT",
-                        isEncrypted = true,
-                        encryptionAlgorithm = "AES256",
-                        mediaUrls = scheduledMessage.mediaUrls
-                    )
-                    messageRepository.insertMessage(message)
+                if (scheduledMessage.scheduledTime > nowTime) continue
 
-                    val sentAt = System.currentTimeMillis()
-                    val nextScheduledTime = computeNextScheduleTime(
-                        repeatType = scheduledMessage.repeatType,
-                        currentScheduledTime = scheduledMessage.scheduledTime
-                    )
+                val sendResult = smsSender.sendTextMessage(
+                    conversationId = scheduledMessage.conversationId,
+                    recipientPhone = scheduledMessage.recipientPhoneNumber,
+                    content = scheduledMessage.content,
+                    persistToDb = true
+                )
 
-                    if (nextScheduledTime != null &&
-                        (scheduledMessage.repeatUntil == null || nextScheduledTime <= scheduledMessage.repeatUntil)
-                    ) {
-                        // Keep repeating messages pending and move the next trigger time.
-                        scheduledMessageRepository.updateScheduledMessage(
-                            scheduledMessage.copy(
-                                scheduledTime = nextScheduledTime,
-                                status = "PENDING",
-                                sentAt = sentAt
-                            )
+                if (sendResult.isFailure) {
+                    scheduledMessageRepository.updateScheduledMessage(
+                        scheduledMessage.copy(
+                            status = "FAILED",
+                            failureReason = sendResult.exceptionOrNull()?.message
                         )
-                    } else {
-                        scheduledMessageRepository.updateScheduledMessage(
-                            scheduledMessage.copy(status = "SENT", sentAt = sentAt)
+                    )
+                    continue
+                }
+
+                val sentAt = System.currentTimeMillis()
+                conversationRepository.getConversationById(scheduledMessage.conversationId)?.let { conv ->
+                    conversationRepository.updateConversation(
+                        conv.copy(
+                            lastMessage = scheduledMessage.content,
+                            lastMessageTime = sentAt
                         )
-                    }
+                    )
+                }
+
+                val nextScheduledTime = computeNextScheduleTime(
+                    repeatType = scheduledMessage.repeatType,
+                    currentScheduledTime = scheduledMessage.scheduledTime
+                )
+
+                if (nextScheduledTime != null &&
+                    (scheduledMessage.repeatUntil == null || nextScheduledTime <= scheduledMessage.repeatUntil)
+                ) {
+                    scheduledMessageRepository.updateScheduledMessage(
+                        scheduledMessage.copy(
+                            scheduledTime = nextScheduledTime,
+                            status = "PENDING",
+                            sentAt = sentAt,
+                            failureReason = null
+                        )
+                    )
+                } else {
+                    scheduledMessageRepository.updateScheduledMessage(
+                        scheduledMessage.copy(status = "SENT", sentAt = sentAt, failureReason = null)
+                    )
                 }
             }
 
             Result.success()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Timber.e(e, "ScheduledMessageWorker failed")
             Result.retry()
         }
     }
@@ -83,17 +96,14 @@ class ScheduledMessageWorker @AssistedInject constructor(
                 calendar.add(Calendar.DAY_OF_YEAR, 1)
                 calendar.timeInMillis
             }
-
             "WEEKLY" -> {
                 calendar.add(Calendar.WEEK_OF_YEAR, 1)
                 calendar.timeInMillis
             }
-
             "MONTHLY" -> {
                 calendar.add(Calendar.MONTH, 1)
                 calendar.timeInMillis
             }
-
             else -> null
         }
     }

@@ -76,6 +76,15 @@ fun MainScreen() {
                     },
                     onNewConversationClick = {
                         navController.navigate("new_conversation")
+                    },
+                    onSearchClick = {
+                        navController.navigate("search")
+                    },
+                    onBlocklistClick = {
+                        navController.navigate("blocklist")
+                    },
+                    onArchiveClick = {
+                        navController.navigate("archive")
                     }
                 )
             }
@@ -94,13 +103,29 @@ fun MainScreen() {
                 arguments = listOf(navArgument("conversationId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
-                ChatDetailScreen(conversationId = conversationId)
+                ChatDetailScreen(
+                    conversationId = conversationId,
+                    onNavigateToDetails = { messageId ->
+                        navController.navigate("message_details/$messageId")
+                    }
+                )
+            }
+            composable("search") {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onConversationClick = { conversationId ->
+                        navController.navigate("chat/$conversationId")
+                    }
+                )
             }
             composable("settings") {
                 SettingsScreen(navController = navController)
             }
             composable("shortcuts") {
                 ShortcutsScreen()
+            }
+            composable("templates") {
+                TemplatesScreen()
             }
             composable("signatures") {
                 SignaturesScreen()
@@ -131,6 +156,25 @@ fun MainScreen() {
             }
             composable("security") {
                 SecuritySettingsScreen(navController = navController)
+            }
+            composable("blocklist") {
+                BlocklistScreen(navController = navController)
+            }
+            composable("archive") {
+                ArchiveScreen(navController = navController)
+            }
+            composable("messaging_settings") {
+                MessagingSettingsScreen(navController = navController)
+            }
+            composable(
+                route = "message_details/{messageId}",
+                arguments = listOf(navArgument("messageId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val messageId = backStackEntry.arguments?.getString("messageId") ?: ""
+                MessageDetailsScreen(
+                    messageId = messageId,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

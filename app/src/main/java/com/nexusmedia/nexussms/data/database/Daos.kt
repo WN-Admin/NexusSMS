@@ -81,6 +81,27 @@ interface MessageDao {
     
     @Query("DELETE FROM messages WHERE id = :messageId")
     suspend fun hardDeleteMessage(messageId: String)
+
+    @Query("""
+        SELECT * FROM messages
+        WHERE isDeleted = 0 AND content LIKE '%' || :query || '%'
+        ORDER BY timestamp DESC
+        LIMIT 100
+    """)
+    fun searchMessages(query: String): Flow<List<Message>>
+
+    @Query("""
+        SELECT * FROM messages
+        WHERE isLocked = 1 AND isDeleted = 0
+        ORDER BY timestamp DESC
+    """)
+    fun getLockedMessages(): Flow<List<Message>>
+
+    @Query("UPDATE messages SET isLocked = :locked WHERE id = :messageId")
+    suspend fun setMessageLocked(messageId: String, locked: Boolean)
+
+    @Query("DELETE FROM messages WHERE isLocked = 0 AND timestamp < :cutoffTime AND conversationId = :conversationId")
+    suspend fun deleteOldMessages(conversationId: String, cutoffTime: Long)
 }
 
 @Dao
@@ -99,33 +120,53 @@ interface ConversationDao {
     
     @Query("""
         SELECT * FROM conversations 
-        WHERE isArchived = 0 
+        WHERE isArchived = 0 AND isBlocked = 0
         ORDER BY lastMessageTime DESC
     """)
     fun getAllConversations(): Flow<List<Conversation>>
     
     @Query("""
         SELECT * FROM conversations 
-        WHERE isArchived = 1 
+        WHERE isArchived = 1 AND isBlocked = 0
         ORDER BY lastMessageTime DESC
     """)
     fun getArchivedConversations(): Flow<List<Conversation>>
+
+    @Query("""
+        SELECT * FROM conversations 
+        WHERE isBlocked = 1
+        ORDER BY lastMessageTime DESC
+    """)
+    fun getBlockedConversations(): Flow<List<Conversation>>
     
-    @Query("SELECT * FROM conversations WHERE isMuted = 0 AND unreadCount > 0")
+    @Query("SELECT * FROM conversations WHERE isMuted = 0 AND unreadCount > 0 AND isBlocked = 0")
     fun getUnreadConversations(): Flow<List<Conversation>>
 
-    @Query("SELECT * FROM conversations WHERE isPinned = 1 ORDER BY lastMessageTime DESC")
+    @Query("""
+        SELECT * FROM conversations 
+        WHERE isPinned = 1 AND isArchived = 0 AND isBlocked = 0 
+        ORDER BY lastMessageTime DESC
+    """)
     fun getPinnedConversations(): Flow<List<Conversation>>
 
     @Query("""
         SELECT * FROM conversations
-        WHERE isArchived = 0 AND sourcePlatform = :platform
+        WHERE isArchived = 0 AND isBlocked = 0 AND sourcePlatform = :platform
         ORDER BY lastMessageTime DESC
     """)
     fun getConversationsByPlatform(platform: String): Flow<List<Conversation>>
 
-    @Query("SELECT DISTINCT sourcePlatform FROM conversations WHERE isArchived = 0")
+    @Query("SELECT DISTINCT sourcePlatform FROM conversations WHERE isArchived = 0 AND isBlocked = 0")
     fun getActivePlatforms(): Flow<List<String>>
+
+    @Query("""
+        SELECT * FROM conversations
+        WHERE isArchived = 0 AND isBlocked = 0
+        AND (displayName LIKE '%' || :query || '%' OR participantPhoneNumbers LIKE '%' || :query || '%' OR lastMessage LIKE '%' || :query || '%')
+        ORDER BY lastMessageTime DESC
+        LIMIT 50
+    """)
+    fun searchConversations(query: String): Flow<List<Conversation>>
     
     @Query("""
         SELECT * FROM conversations 
@@ -387,4 +428,28 @@ interface AppSecuritySettingsDao {
     
     @Query("UPDATE app_security_settings SET isSessionLocked = :locked WHERE id = 'default'")
     suspend fun updateSessionLocked(locked: Boolean)
+}
+
+@Dao
+interface TemplateDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTemplate(template: Template)
+
+    @Update
+    suspend fun updateTemplate(template: Template)
+
+    @Delete
+    suspend fun deleteTemplate(template: Template)
+
+    @Query("SELECT * FROM templates ORDER BY usageCount DESC, name ASC")
+    fun getAllTemplates(): Flow<List<Template>>
+
+    @Query("SELECT * FROM templates WHERE category = :category ORDER BY usageCount DESC")
+    fun getTemplatesByCategory(category: String): Flow<List<Template>>
+
+    @Query("SELECT * FROM templates WHERE id = :templateId")
+    suspend fun getTemplateById(templateId: String): Template?
+
+    @Query("UPDATE templates SET usageCount = usageCount + 1 WHERE id = :templateId")
+    suspend fun incrementUsage(templateId: String)
 }

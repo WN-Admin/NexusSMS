@@ -70,5 +70,8 @@ data class Message(
     val sourcePlatform: String = "SMS", // SMS, RCS, TELEGRAM, DISCORD, etc.
 
     @ColumnInfo(name = "sourceSmsId", defaultValue = "NULL")
-    val sourceSmsId: Long? = null // System SMS _ID for idempotent import
+    val sourceSmsId: Long? = null, // System SMS _ID for idempotent import
+
+    @ColumnInfo(defaultValue = "0")
+    val isLocked: Boolean = false
 )
