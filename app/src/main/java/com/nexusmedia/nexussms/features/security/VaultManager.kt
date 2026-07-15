@@ -1,6 +1,7 @@
 package com.nexusmedia.nexussms.features.security
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
@@ -9,7 +10,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,14 +48,23 @@ class VaultManager @Inject constructor(
     companion object {
         private const val VAULT_PREFS = "vault_prefs"
         private const val PIN_HASH_KEY = "vault_pin_hash"
+        private const val PIN_SALT_KEY = "vault_pin_salt"
         private const val PATTERN_HASH_KEY = "vault_pattern_hash"
         private const val DECOY_PIN_HASH_KEY = "decoy_pin_hash"
+        private const val DECOY_PIN_SALT_KEY = "decoy_pin_salt"
         private const val HIDDEN_CONVERSATIONS_KEY = "hidden_conversations"
         private const val VAULT_ENABLED_KEY = "vault_enabled"
         private const val LAST_ACCESS_KEY = "last_access"
         private const val ACCESS_COUNT_KEY = "access_count"
         private const val HIDE_FROM_RECENTS_KEY = "hide_from_recents"
         private const val FAKE_VAULT_KEY = "fake_vault_enabled"
+        private const val FAILED_ATTEMPTS_KEY = "failed_attempts"
+        private const val LOCKOUT_UNTIL_KEY = "lockout_until"
+
+        private const val PBKDF2_ITERATIONS = 100_000
+        private const val SALT_LENGTH = 16
+        private const val MAX_FAILED_ATTEMPTS = 5
+        private const val LOCKOUT_DURATION_MS = 30_000L // 30 seconds
     }
 
     private val masterKey = MasterKey.Builder(context)
@@ -88,17 +100,23 @@ class VaultManager @Inject constructor(
     }
 
     fun setupVault(pin: String, decoyPin: String? = null): Boolean {
-        val pinHash = hashPin(pin)
+        val pinSaltBytes = ByteArray(SALT_LENGTH).also { SecureRandom().nextBytes(it) }
+        val pinSalt = java.util.Base64.getEncoder().encodeToString(pinSaltBytes)
+        val pinHash = hashPinWithSalt(pin, pinSaltBytes)
         vaultPrefs.edit()
             .putBoolean(VAULT_ENABLED_KEY, true)
             .putString(PIN_HASH_KEY, pinHash)
+            .putString(PIN_SALT_KEY, pinSalt)
             .apply()
 
         if (decoyPin != null) {
-            val decoyHash = hashPin(decoyPin)
+            val decoySaltBytes = ByteArray(SALT_LENGTH).also { SecureRandom().nextBytes(it) }
+            val decoySalt = java.util.Base64.getEncoder().encodeToString(decoySaltBytes)
+            val decoyHash = hashPinWithSalt(decoyPin, decoySaltBytes)
             vaultPrefs.edit()
                 .putBoolean(FAKE_VAULT_KEY, true)
                 .putString(DECOY_PIN_HASH_KEY, decoyHash)
+                .putString(DECOY_PIN_SALT_KEY, decoySalt)
                 .apply()
         }
 
@@ -107,25 +125,56 @@ class VaultManager @Inject constructor(
     }
 
     fun unlockVault(pin: String): VaultUnlockResult {
-        val storedPinHash = vaultPrefs.getString(PIN_HASH_KEY, null)
+        val now = System.currentTimeMillis()
+        val lockoutUntil = vaultPrefs.getLong(LOCKOUT_UNTIL_KEY, 0)
+        if (now < lockoutUntil) {
+            val remaining = ((lockoutUntil - now) / 1000).toInt()
+            return VaultUnlockResult.ERROR("Too many attempts. Try again in ${remaining}s")
+        }
 
-        if (storedPinHash == null) {
+        val storedPinHash = vaultPrefs.getString(PIN_HASH_KEY, null)
+        val storedSalt = vaultPrefs.getString(PIN_SALT_KEY, null)
+
+        if (storedPinHash == null || storedSalt == null) {
             return VaultUnlockResult.ERROR("Vault not set up")
         }
 
-        val inputHash = hashPin(pin)
+        val inputHash = hashPinWithSalt(pin, storedSalt)
 
         if (inputHash == storedPinHash) {
             _vaultState.value = VaultState.UNLOCKED
             updateAccessStats()
+            vaultPrefs.edit()
+                .putInt(FAILED_ATTEMPTS_KEY, 0)
+                .apply()
             return VaultUnlockResult.SUCCESS
         }
 
         val decoyPinHash = vaultPrefs.getString(DECOY_PIN_HASH_KEY, null)
-        if (decoyPinHash != null && inputHash == decoyPinHash) {
-            _vaultState.value = VaultState.DECOY
-            updateAccessStats()
-            return VaultUnlockResult.DECOY
+        val decoySalt = vaultPrefs.getString(DECOY_PIN_SALT_KEY, null)
+        if (decoyPinHash != null && decoySalt != null) {
+            val decoyInputHash = hashPinWithSalt(pin, decoySalt)
+            if (decoyInputHash == decoyPinHash) {
+                _vaultState.value = VaultState.DECOY
+                updateAccessStats()
+                vaultPrefs.edit()
+                    .putInt(FAILED_ATTEMPTS_KEY, 0)
+                    .apply()
+                return VaultUnlockResult.DECOY
+            }
+        }
+
+        val failedAttempts = vaultPrefs.getInt(FAILED_ATTEMPTS_KEY, 0) + 1
+        vaultPrefs.edit()
+            .putInt(FAILED_ATTEMPTS_KEY, failedAttempts)
+            .apply()
+
+        if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+            vaultPrefs.edit()
+                .putLong(LOCKOUT_UNTIL_KEY, now + LOCKOUT_DURATION_MS)
+                .putInt(FAILED_ATTEMPTS_KEY, 0)
+                .apply()
+            return VaultUnlockResult.ERROR("Too many attempts. Locked for 30 seconds")
         }
 
         return VaultUnlockResult.INCORRECT_PIN
@@ -167,14 +216,12 @@ class VaultManager @Inject constructor(
         if (!isVaultUnlocked()) return null
 
         val current = _hiddenConversations.value.toMutableList()
-        val removed = current.removeAll { it.id == hiddenId }
-
-        if (removed) {
+        val removed = current.find { it.id == hiddenId }
+        if (removed != null) {
+            current.removeAll { it.id == hiddenId }
             _hiddenConversations.value = current
             saveHiddenConversations(current)
-
-            val conversation = current.find { it.id == hiddenId }
-            return conversation?.originalConversationId
+            return removed.originalConversationId
         }
 
         return null
@@ -210,31 +257,42 @@ class VaultManager @Inject constructor(
     }
 
     fun changePin(oldPin: String, newPin: String): Boolean {
-        val oldHash = hashPin(oldPin)
         val storedHash = vaultPrefs.getString(PIN_HASH_KEY, null)
+        val storedSalt = vaultPrefs.getString(PIN_SALT_KEY, null) ?: return false
+        if (storedHash == null) return false
 
+        val oldHash = hashPinWithSalt(oldPin, storedSalt)
         if (oldHash != storedHash) return false
 
-        val newHash = hashPin(newPin)
+        val newSaltBytes = ByteArray(SALT_LENGTH).also { SecureRandom().nextBytes(it) }
+        val newSalt = java.util.Base64.getEncoder().encodeToString(newSaltBytes)
+        val newHash = hashPinWithSalt(newPin, newSaltBytes)
         vaultPrefs.edit()
             .putString(PIN_HASH_KEY, newHash)
+            .putString(PIN_SALT_KEY, newSalt)
             .apply()
 
         return true
     }
 
     fun disableVault(pin: String): Boolean {
-        val pinHash = hashPin(pin)
         val storedHash = vaultPrefs.getString(PIN_HASH_KEY, null)
+        val storedSalt = vaultPrefs.getString(PIN_SALT_KEY, null) ?: return false
+        if (storedHash == null) return false
 
+        val pinHash = hashPinWithSalt(pin, storedSalt)
         if (pinHash != storedHash) return false
 
         vaultPrefs.edit()
             .putBoolean(VAULT_ENABLED_KEY, false)
             .remove(PIN_HASH_KEY)
+            .remove(PIN_SALT_KEY)
             .remove(PATTERN_HASH_KEY)
             .remove(DECOY_PIN_HASH_KEY)
+            .remove(DECOY_PIN_SALT_KEY)
             .remove(FAKE_VAULT_KEY)
+            .remove(FAILED_ATTEMPTS_KEY)
+            .remove(LOCKOUT_UNTIL_KEY)
             .apply()
 
         _vaultState.value = VaultState.DISABLED
@@ -273,10 +331,16 @@ class VaultManager @Inject constructor(
             .apply()
     }
 
-    private fun hashPin(pin: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(pin.toByteArray())
+    private fun hashPinWithSalt(pin: String, salt: ByteArray): String {
+        val spec = PBEKeySpec(pin.toCharArray(), salt, PBKDF2_ITERATIONS, 256)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val hash = factory.generateSecret(spec).encoded
         return hash.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun hashPinWithSalt(pin: String, saltBase64: String): String {
+        val salt = java.util.Base64.getDecoder().decode(saltBase64)
+        return hashPinWithSalt(pin, salt)
     }
 }
 

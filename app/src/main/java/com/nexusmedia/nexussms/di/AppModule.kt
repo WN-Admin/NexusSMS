@@ -110,8 +110,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideMessageRepository(database: NexusSMSDatabase): MessageRepository =
-        MessageRepository(database.messageDao())
+    fun provideMessageDao(database: NexusSMSDatabase): com.nexusmedia.nexussms.data.database.MessageDao =
+        database.messageDao()
+
+    @Provides
+    @Singleton
+    fun provideMessageRepository(messageDao: com.nexusmedia.nexussms.data.database.MessageDao): MessageRepository =
+        MessageRepository(messageDao)
 
     @Provides
     @Singleton

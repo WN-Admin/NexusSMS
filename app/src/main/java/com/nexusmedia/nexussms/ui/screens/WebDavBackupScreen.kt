@@ -208,6 +208,7 @@ fun WebDavBackupScreen(
                         if (isConnected) {
                             Button(
                                 onClick = {
+                                    webDavBackupService.clearStoredCredentials()
                                     isConnected = false
                                     backups = emptyList()
                                 },
@@ -230,6 +231,7 @@ fun WebDavBackupScreen(
                                         isConnected = success
                                         isConnecting = false
                                         if (success) {
+                                            webDavBackupService.persistCredentials(serverUrl, username, password)
                                             backups = webDavBackupService.listBackups()
                                         }
                                     }

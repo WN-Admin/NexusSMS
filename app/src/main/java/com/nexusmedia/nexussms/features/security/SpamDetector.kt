@@ -140,7 +140,7 @@ class SpamDetector @Inject constructor(
                 "(?i)(?:your|the)\\s+(?:computer|device|phone|system)\\s+(?:is|has been)\\s+(?:compromised|infected|hacked)",
                 "(?i)(?:virus|malware|spyware)\\s+(?:detected|found|identified)",
                 "(?i)call\\s+(?:this|the)\\s+(?:number|support line)\\s+(?:immediately|now|urgently)",
-                "(?i)microsoft|apple|google|amazon\\s+(?:support|security|team)",
+                "(?i)(?:microsoft|apple|google|amazon)\\s+(?:support|security|team)",
                 "(?i)(?:your|the)\\s+(?:subscription|warranty)\\s+(?:has expired|is expiring)"
             ),
             keywords = listOf("virus detected", "computer infected", "tech support", "microsoft support", "apple support", "subscription expired"),
@@ -229,6 +229,10 @@ class SpamDetector @Inject constructor(
         )
     )
 
+    private val compiledPatterns: Map<String, List<Regex>> = patterns.associate { pattern ->
+        pattern.id to pattern.patterns.map { Regex(it) }
+    }
+
     fun analyzeMessage(message: String): DetectionResult {
         val matchedPatterns = mutableListOf<SpamPattern>()
         var maxRiskLevel = RiskLevel.LOW
@@ -236,8 +240,9 @@ class SpamDetector @Inject constructor(
         for (pattern in patterns) {
             var matched = false
 
-            for (regex in pattern.patterns) {
-                if (Regex(regex).containsMatchIn(message)) {
+            val regexes = compiledPatterns[pattern.id] ?: emptyList()
+            for (regex in regexes) {
+                if (regex.containsMatchIn(message)) {
                     matched = true
                     break
                 }

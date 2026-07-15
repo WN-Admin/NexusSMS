@@ -63,8 +63,14 @@ class WebDavBackupWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         return try {
             Timber.d("Starting WebDAV automatic backup")
+
+            if (!webDavBackupService.authenticateFromStoredCredentials()) {
+                Timber.e(TAG, "WebDAV: no stored credentials or re-authentication failed")
+                return Result.failure()
+            }
+
             val result = webDavBackupService.createBackup(
-                dataTypes = listOf("shortcuts", "signatures", "themes"),
+                dataTypes = listOf("shortcuts", "signatures", "themes", "conversations", "messages"),
                 encrypt = true,
                 isAutomatic = true
             )
