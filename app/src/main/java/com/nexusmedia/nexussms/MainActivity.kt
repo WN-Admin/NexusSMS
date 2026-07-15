@@ -58,11 +58,11 @@ class MainActivity : FragmentActivity() {
                 val observer = LifecycleEventObserver { _, event ->
                     when (event) {
                         Lifecycle.Event.ON_STOP -> {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                sessionManager.endSession()
-                            }
-                            isAuthenticated = false
-                            sessionChecked = false
+                            // Do NOT call endSession() here. The configured
+                            // appLockTimeout / biometricTimeout in SessionManager
+                            // already handles expiry. Calling endSession() on
+                            // every ON_STOP (rotation, share sheet, brief
+                            // backgrounding) defeats the timeout entirely.
                         }
                         Lifecycle.Event.ON_START -> {
                             CoroutineScope(Dispatchers.IO).launch {
