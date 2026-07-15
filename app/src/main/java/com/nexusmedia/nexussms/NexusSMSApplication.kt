@@ -61,8 +61,16 @@ class NexusSMSApplication : Application(), Configuration.Provider {
             description = "Backup status notifications"
         }
 
+        val spamChannel = NotificationChannel(
+            CHANNEL_SPAM,
+            "Spam Alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Spam and scam detection warnings"
+        }
+
         notificationManager.createNotificationChannels(
-            listOf(smsChannel, scheduledChannel, backupChannel)
+            listOf(smsChannel, scheduledChannel, backupChannel, spamChannel)
         )
     }
 
@@ -70,5 +78,6 @@ class NexusSMSApplication : Application(), Configuration.Provider {
         const val CHANNEL_SMS = "nexussms_sms"
         const val CHANNEL_SCHEDULED = "nexussms_scheduled"
         const val CHANNEL_BACKUP = "nexussms_backup"
+        const val CHANNEL_SPAM = "nexussms_spam"
     }
 }

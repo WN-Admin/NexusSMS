@@ -122,6 +122,9 @@ dependencies {
     // Security
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // DataStore Preferences
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     // Google Drive Backup & Sync
     implementation("com.google.android.gms:play-services-drive:17.0.0")
     implementation("com.google.http-client:google-http-client-gson:1.43.0")

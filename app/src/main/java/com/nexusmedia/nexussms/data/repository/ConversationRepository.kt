@@ -74,4 +74,7 @@ class ConversationRepository @Inject constructor(
 
     suspend fun findConversationWithParticipant(phoneNumber: String): Conversation? =
         conversationDao.findConversationWithParticipant(phoneNumber)
+
+    suspend fun getAllConversationsList(): List<Conversation> =
+        conversationDao.getAllConversationsList()
 }

@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -146,6 +148,8 @@ fun ConversationListScreen(
     onSearchClick: () -> Unit = {},
     onBlocklistClick: () -> Unit = {},
     onArchiveClick: () -> Unit = {},
+    onContactsClick: () -> Unit = {},
+    onHideInVault: ((Conversation) -> Unit)? = null,
     viewModel: ConversationListViewModel = hiltViewModel()
 ) {
     val conversationList by viewModel.conversationList.collectAsState()
@@ -233,6 +237,13 @@ fun ConversationListScreen(
                         titleContentColor = Color.White
                     ),
                     actions = {
+                        IconButton(onClick = onContactsClick) {
+                            Icon(
+                                Icons.Default.Contacts,
+                                contentDescription = "Contacts",
+                                tint = Color.White
+                            )
+                        }
                         IconButton(onClick = onSearchClick) {
                             Icon(
                                 Icons.Default.Search,
@@ -366,6 +377,7 @@ fun ConversationListScreen(
                                 onCallClick = { /* TODO: launch dialer */ },
                                 onViewInfoClick = { /* TODO: show contact info */ },
                                 onReportSpam = { spamReportConversation = conversation },
+                                onHideInVault = onHideInVault?.let { hide -> { hide(conversation) } },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
@@ -410,6 +422,7 @@ fun ConversationListScreen(
                                 onCallClick = { /* TODO: launch dialer */ },
                                 onViewInfoClick = { /* TODO: show contact info */ },
                                 onReportSpam = { spamReportConversation = conversation },
+                                onHideInVault = onHideInVault?.let { hide -> { hide(conversation) } },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
                             )
                         }
@@ -539,6 +552,7 @@ private fun SwipeableConversationItem(
     onCallClick: (() -> Unit)? = null,
     onViewInfoClick: (() -> Unit)? = null,
     onReportSpam: (() -> Unit)? = null,
+    onHideInVault: (() -> Unit)? = null,
     avatarPhotoUri: String? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -615,6 +629,7 @@ private fun SwipeableConversationItem(
                 onCallClick = onCallClick,
                 onViewInfoClick = onViewInfoClick,
                 onReportSpam = onReportSpam,
+                onHideInVault = onHideInVault,
                 avatarPhotoUri = avatarPhotoUri
             )
         }
@@ -661,6 +676,7 @@ private fun ConversationItemRow(
     onCallClick: (() -> Unit)? = null,
     onViewInfoClick: (() -> Unit)? = null,
     onReportSpam: (() -> Unit)? = null,
+    onHideInVault: (() -> Unit)? = null,
     avatarPhotoUri: String? = null
 ) {
     val displayName = conversation.displayName.ifBlank {
@@ -894,6 +910,16 @@ private fun ConversationItemRow(
                     onClick = { showContextMenu = false; onDeleteClick() },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                 )
+                if (onHideInVault != null) {
+                    DropdownMenuItem(
+                        text = { Text("Hide in Vault") },
+                        onClick = {
+                            showContextMenu = false
+                            onHideInVault.invoke()
+                        },
+                        leadingIcon = { Icon(Icons.Default.VisibilityOff, contentDescription = null) }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Report Spam") },
                     onClick = {

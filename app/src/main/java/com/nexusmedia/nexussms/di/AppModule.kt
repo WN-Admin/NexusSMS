@@ -16,7 +16,10 @@ import com.nexusmedia.nexussms.data.repository.SignatureRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
+import com.nexusmedia.nexussms.data.repository.UnifiedContactRepository
 import com.nexusmedia.nexussms.data.database.TemplateDao
+import com.nexusmedia.nexussms.features.messaging.ChannelRouter
+import com.nexusmedia.nexussms.features.messaging.ChannelRoutingManager
 import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
 import com.nexusmedia.nexussms.features.mms.MmsHelper
 import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
@@ -25,8 +28,13 @@ import com.nexusmedia.nexussms.services.SmsSender
 import com.nexusmedia.nexussms.features.security.AppLockManager
 import com.nexusmedia.nexussms.features.security.BiometricAuthManager
 import com.nexusmedia.nexussms.features.security.SessionManager
+import com.nexusmedia.nexussms.features.security.SpamDao
+import com.nexusmedia.nexussms.features.security.SpamDatabase
+import com.nexusmedia.nexussms.features.automation.AutomationDatabase
+import com.nexusmedia.nexussms.features.automation.AutomationDao
 import com.nexusmedia.nexussms.features.backup.GoogleDriveBackupService
 import com.nexusmedia.nexussms.features.backup.GoogleDriveClient
+import com.nexusmedia.nexussms.features.backup.WebDavClient
 import com.nexusmedia.nexussms.security.EncryptionManager
 import dagger.Module
 import dagger.Provides
@@ -85,6 +93,18 @@ object AppModule {
     @Singleton
     fun provideTemplateRepository(templateDao: TemplateDao): TemplateRepository =
         TemplateRepository(templateDao)
+
+    @Provides
+    @Singleton
+    fun provideUnifiedContactRepository(
+        database: NexusSMSDatabase,
+        gson: com.google.gson.Gson
+    ): UnifiedContactRepository =
+        UnifiedContactRepository(database.unifiedContactDao(), database.conversationDao(), gson)
+
+    @Provides
+    @Singleton
+    fun provideGson(): com.google.gson.Gson = com.google.gson.Gson()
 
     // --- Repositories ---
 
@@ -147,8 +167,8 @@ object AppModule {
         appSecuritySettingsDao: AppSecuritySettingsDao
     ): BiometricAuthManager = BiometricAuthManager(context, appSecuritySettingsDao)
 
-    // MessagingPreferences, MmsHelper, SmsSender, SmsNotificationHelper, ScheduledMessageScheduler
-    // use @Inject constructors — resolved by Hilt automatically.
+    // MessagingPreferences, MmsHelper, SmsSender, SmsNotificationHelper, ScheduledMessageScheduler,
+    // ChannelRouter, ChannelRoutingManager use @Inject constructors — resolved by Hilt automatically.
 
     @Provides
     @Singleton
@@ -162,6 +182,48 @@ object AppModule {
         appSecuritySettingsDao: AppSecuritySettingsDao
     ): SessionManager = SessionManager(appSecuritySettingsDao)
 
+    // --- Spam Detection ---
+
+    @Provides
+    @Singleton
+    fun provideSpamDatabase(
+        @ApplicationContext context: Context
+    ): SpamDatabase {
+        return Room.databaseBuilder(
+            context,
+            SpamDatabase::class.java,
+            "spam_database"
+        )
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSpamDao(spamDatabase: SpamDatabase): SpamDao =
+        spamDatabase.spamDao()
+
+    // --- Automation ---
+
+    @Provides
+    @Singleton
+    fun provideAutomationDatabase(
+        @ApplicationContext context: Context
+    ): AutomationDatabase {
+        return Room.databaseBuilder(
+            context,
+            AutomationDatabase::class.java,
+            "automation_database"
+        )
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAutomationDao(automationDatabase: AutomationDatabase): AutomationDao =
+        automationDatabase.automationDao()
+
     // --- Services ---
 
     @Provides
@@ -169,6 +231,12 @@ object AppModule {
     fun provideGoogleDriveClient(
         @ApplicationContext context: Context
     ): GoogleDriveClient = GoogleDriveClient(context)
+
+    @Provides
+    @Singleton
+    fun provideWebDavClient(
+        @ApplicationContext context: Context
+    ): WebDavClient = WebDavClient(context)
 
     @Provides
     @Singleton

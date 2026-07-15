@@ -121,6 +121,7 @@ import com.nexusmedia.nexussms.ui.components.EmojiPicker
 import com.nexusmedia.nexussms.ui.components.NexusAvatar
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.ui.viewmodels.ChatViewModel
+import androidx.compose.material.icons.filled.VerifiedUser
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -131,6 +132,8 @@ import java.util.Locale
 fun ChatDetailScreen(
     conversationId: String,
     onNavigateToDetails: (String) -> Unit = {},
+    onNavigateToSafetyNumber: (String) -> Unit = {},
+    onNavigateToKeyVerification: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val messages by viewModel.messages.collectAsState()
@@ -397,6 +400,14 @@ fun ChatDetailScreen(
                                 showConversationMenu = false
                             },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Verify Encryption") },
+                            onClick = {
+                                showConversationMenu = false
+                                onNavigateToSafetyNumber(conversationId)
+                            },
+                            leadingIcon = { Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                         )
                         DropdownMenuItem(
                             text = { Text("Report Spam") },

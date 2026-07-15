@@ -9,12 +9,19 @@ import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.features.notifications.PerContactNotificationSettings
+import com.nexusmedia.nexussms.features.security.SpamBlocklistManager
+import com.nexusmedia.nexussms.features.security.SpamDetector
+import com.nexusmedia.nexussms.features.security.SpamAction
+import com.nexusmedia.nexussms.features.automation.RuleEngine
+import com.nexusmedia.nexussms.features.automation.ActionExecutor
+import com.nexusmedia.nexussms.features.automation.IncomingMessage
 import com.nexusmedia.nexussms.security.EncryptionManager
 import com.nexusmedia.nexussms.services.SmsNotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -27,6 +34,11 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject lateinit var encryptionManager: EncryptionManager
     @Inject lateinit var smsNotificationHelper: SmsNotificationHelper
     @Inject lateinit var perContactNotificationSettings: PerContactNotificationSettings
+    @Inject lateinit var spamDetector: SpamDetector
+    @Inject lateinit var spamBlocklistManager: SpamBlocklistManager
+    @Inject lateinit var ruleEngine: RuleEngine
+    @Inject lateinit var actionExecutor: ActionExecutor
+    @Inject lateinit var automationDao: com.nexusmedia.nexussms.features.automation.AutomationDao
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
@@ -46,6 +58,16 @@ class SmsReceiver : BroadcastReceiver() {
                         encryptionManager.decryptAES256(rawBody.removePrefix("ENC:"))
                     } else {
                         rawBody
+                    }
+
+                    val spamAction = spamBlocklistManager.handleSpamDetection(
+                        message = messageBody,
+                        senderNumber = senderPhoneNumber,
+                        conversationId = null
+                    )
+
+                    if (spamAction == SpamAction.BLOCKED) {
+                        continue
                     }
 
                     val existing = conversationRepository.findConversationWithParticipant(senderPhoneNumber)
@@ -91,6 +113,56 @@ class SmsReceiver : BroadcastReceiver() {
                         encryptionAlgorithm = if (isEncryptedPayload) "AES256" else null
                     )
                     messageRepository.insertMessage(message)
+
+                    try {
+                        val enabledEntities = automationDao.getEnabledRules().first()
+                        val enabledRules = enabledEntities.map { entity ->
+                            com.nexusmedia.nexussms.features.automation.MessageRule(
+                                id = entity.id,
+                                name = entity.name,
+                                description = entity.description,
+                                isEnabled = entity.isEnabled,
+                                priority = entity.priority,
+                                senderPattern = entity.senderPattern,
+                                contentPattern = entity.contentPattern,
+                                platform = entity.platform,
+                                timeRangeStart = entity.timeRangeStart,
+                                timeRangeEnd = entity.timeRangeEnd,
+                                minMessageLength = entity.minMessageLength,
+                                maxMessageLength = entity.maxMessageLength,
+                                actions = emptyList(),
+                                createdAt = entity.createdAt,
+                                lastTriggered = entity.lastTriggered,
+                                triggerCount = entity.triggerCount,
+                                lastTriggeredMessage = entity.lastTriggeredMessage
+                            )
+                        }
+                        if (enabledRules.isNotEmpty()) {
+                            val incoming = IncomingMessage(
+                                id = messageId,
+                                senderNumber = senderPhoneNumber,
+                                senderName = null,
+                                content = messageBody,
+                                platform = "SMS",
+                                timestamp = timestamp,
+                                conversationId = conversationId
+                            )
+                            ruleEngine.evaluateMessage(incoming, enabledRules) { action, msg ->
+                                actionExecutor.execute(action, msg)
+                            }
+                        }
+                    } catch (_: Exception) { }
+
+                    if (spamAction == SpamAction.WARNING) {
+                        val spamEnabled = spamBlocklistManager.spamNotificationEnabled.first()
+                        if (spamEnabled) {
+                            smsNotificationHelper.showSpamWarningNotification(
+                                senderPhone = senderPhoneNumber,
+                                messageBody = messageBody,
+                                messageId = messageId
+                            )
+                        }
+                    }
 
                     val perContactPrivacy = perContactNotificationSettings.getPrivacyLevel(conversationId)
                     if (perContactPrivacy == PerContactNotificationSettings.PRIVACY_NONE) {

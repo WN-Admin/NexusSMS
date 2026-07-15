@@ -31,6 +31,7 @@ import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.features.discord.DiscordService
 import com.nexusmedia.nexussms.features.messenger.MessengerService
 import com.nexusmedia.nexussms.features.messaging.SimSelector
+import com.nexusmedia.nexussms.features.messaging.ChannelRoutingManager
 import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
 import com.nexusmedia.nexussms.data.models.Template
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
@@ -67,7 +68,8 @@ class ChatViewModel @Inject constructor(
     private val messengerService: MessengerService,
     private val simSelector: SimSelector,
     private val smartReplyService: SmartReplyService,
-    private val templateRepository: TemplateRepository
+    private val templateRepository: TemplateRepository,
+    private val channelRoutingManager: ChannelRoutingManager
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -190,57 +192,55 @@ class ChatViewModel @Inject constructor(
                 val mediaUrlsStr = attachments.joinToString(",")
 
                 val platform = _currentConversation.value?.sourcePlatform ?: "SMS"
-                when (platform) {
-                    "MATRIX" -> {
-                        val roomId = _currentConversation.value?.sourceAccountId ?: ""
-                        if (roomId.isBlank()) {
-                            Timber.e("MATRIX conversation has no sourceAccountId (roomId)")
-                            return@launch
-                        }
-                        val result = matrixMessageService.sendTextMessage(
-                            roomId = roomId,
-                            content = messageContent,
-                            conversationId = conversationId,
-                            recipientId = roomId
-                        )
-                        if (!result.success) {
-                            Timber.e("Matrix send failed: %s", result.error)
-                        }
-                    }
-                    "TELEGRAM" -> {
-                        val chatId = _currentConversation.value?.sourceAccountId?.toLongOrNull()
-                        if (chatId == null) {
-                            Timber.e("TELEGRAM conversation has no valid sourceAccountId")
-                            return@launch
-                        }
-                        val sent = telegramService.sendMessage(chatId, messageContent)
-                        if (!sent) {
-                            Timber.e("Telegram send failed")
-                        }
-                    }
-                    "DISCORD" -> {
-                        val channelId = _currentConversation.value?.sourceAccountId ?: ""
-                        if (channelId.isBlank()) {
-                            Timber.e("DISCORD conversation has no sourceAccountId")
-                            return@launch
-                        }
-                        val sent = discordService.sendMessage(channelId, messageContent)
-                        if (!sent) {
-                            Timber.e("Discord send failed")
-                        }
-                    }
-                    "FACEBOOK_MESSENGER" -> {
-                        val recipientId = _currentConversation.value?.sourceAccountId ?: ""
-                        if (recipientId.isBlank()) {
-                            Timber.e("Messenger conversation has no sourceAccountId")
-                            return@launch
-                        }
-                        val sent = messengerService.sendMessage(recipientId, messageContent)
-                        if (!sent) {
-                            Timber.e("Messenger send failed")
+
+                // Use ChannelRouter for non-SMS platform conversations to enable fallback
+                if (platform != "SMS" && platform != "RCS") {
+                    val contactId = conversationId
+                    val availablePlatforms = mutableListOf(platform, "SMS")
+                    val routingResult = channelRoutingManager.routeMessage(
+                        contactId = contactId,
+                        message = messageContent,
+                        availablePlatforms = availablePlatforms.distinct()
+                    ) { sendPlatform, msg ->
+                        when (sendPlatform) {
+                            "MATRIX" -> {
+                                val roomId = _currentConversation.value?.sourceAccountId ?: ""
+                                if (roomId.isBlank()) return@routeMessage Result.failure(Exception("No roomId"))
+                                val result = matrixMessageService.sendTextMessage(
+                                    roomId = roomId,
+                                    content = msg,
+                                    conversationId = conversationId,
+                                    recipientId = roomId
+                                )
+                                if (result.success) Result.success(Unit) else Result.failure(Exception(result.error ?: "Matrix send failed"))
+                            }
+                            "TELEGRAM" -> {
+                                val chatId = _currentConversation.value?.sourceAccountId?.toLongOrNull()
+                                    ?: return@routeMessage Result.failure(Exception("No Telegram chatId"))
+                                if (telegramService.sendMessage(chatId, msg)) Result.success(Unit) else Result.failure(Exception("Telegram send failed"))
+                            }
+                            "DISCORD" -> {
+                                val channelId = _currentConversation.value?.sourceAccountId ?: ""
+                                if (channelId.isBlank()) return@routeMessage Result.failure(Exception("No Discord channelId"))
+                                if (discordService.sendMessage(channelId, msg)) Result.success(Unit) else Result.failure(Exception("Discord send failed"))
+                            }
+                            "MESSENGER" -> {
+                                val recipientId = _currentConversation.value?.sourceAccountId ?: ""
+                                if (recipientId.isBlank()) return@routeMessage Result.failure(Exception("No Messenger recipientId"))
+                                if (messengerService.sendMessage(recipientId, msg)) Result.success(Unit) else Result.failure(Exception("Messenger send failed"))
+                            }
+                            "SMS" -> {
+                                sendSmsDirectly(conversationId, recipientPhone, msg, attachments, mediaUrlsStr)
+                                Result.success(Unit)
+                            }
+                            else -> Result.failure(Exception("Unknown platform: $sendPlatform"))
                         }
                     }
-                    else -> when (_selectedMessageType.value) {
+                    if (!routingResult.success) {
+                        Timber.e("Channel routing failed: %s", routingResult.error)
+                    }
+                } else {
+                    when (_selectedMessageType.value) {
                     "SMS" -> {
                         val messageId = java.util.UUID.randomUUID().toString()
                         val message = Message(
@@ -641,6 +641,101 @@ class ChatViewModel @Inject constructor(
             templateRepository.incrementUsage(template.id)
         }
         _showTemplatePicker.value = false
+    }
+
+    private fun sendSmsDirectly(
+        conversationId: String,
+        recipientPhone: String,
+        content: String,
+        attachments: List<String>,
+        mediaUrlsStr: String
+    ) {
+        val messageId = java.util.UUID.randomUUID().toString()
+        val msg = Message(
+            id = messageId,
+            conversationId = conversationId,
+            senderPhoneNumber = "self",
+            recipientPhoneNumber = recipientPhone,
+            content = content,
+            timestamp = System.currentTimeMillis(),
+            type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
+            status = "SENDING",
+            isEncrypted = true,
+            encryptionAlgorithm = "AES256",
+            mediaUrls = mediaUrlsStr
+        )
+
+        viewModelScope.launch {
+            messageRepository.insertMessage(msg)
+        }
+
+        val smsManager: SmsManager = _selectedSim.value?.let { sim ->
+            simSelector.getSmsManagerForSim(sim)
+        } ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            SmsManager.getDefault()
+        }
+
+        val parts = smsManager.divideMessage(content)
+        val sentIntents = ArrayList<PendingIntent>()
+        val deliveredIntents = ArrayList<PendingIntent>()
+
+        for (i in parts.indices) {
+            val sentIntent = PendingIntent.getBroadcast(
+                context,
+                messageId.hashCode() + i,
+                Intent("com.nexusmedia.nexussms.SMS_SENT").setPackage(context.packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            sentIntents.add(sentIntent)
+
+            val deliveredIntent = PendingIntent.getBroadcast(
+                context,
+                messageId.hashCode() + i + 10000,
+                Intent("com.nexusmedia.nexussms.SMS_DELIVERED").setPackage(context.packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            deliveredIntents.add(deliveredIntent)
+        }
+
+        val sentReceiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                val resultCode = resultCode
+                viewModelScope.launch {
+                    val updatedMessage = msg.copy(
+                        status = if (resultCode == Activity.RESULT_OK) "SENT" else "FAILED"
+                    )
+                    messageRepository.updateMessage(updatedMessage)
+                }
+                try { context.unregisterReceiver(this) } catch (_: Exception) {}
+            }
+        }
+        context.registerReceiver(
+            sentReceiver,
+            IntentFilter("com.nexusmedia.nexussms.SMS_SENT"),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+
+        val deliveredReceiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                try { context.unregisterReceiver(this) } catch (_: Exception) {}
+            }
+        }
+        context.registerReceiver(
+            deliveredReceiver,
+            IntentFilter("com.nexusmedia.nexussms.SMS_DELIVERED"),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+
+        smsManager.sendMultipartTextMessage(
+            recipientPhone,
+            null,
+            parts,
+            sentIntents,
+            deliveredIntents
+        )
     }
 
     companion object {

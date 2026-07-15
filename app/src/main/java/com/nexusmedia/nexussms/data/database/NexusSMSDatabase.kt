@@ -17,8 +17,12 @@ import com.nexusmedia.nexussms.data.models.BackupMetadata
 import com.nexusmedia.nexussms.data.models.AppSecuritySettings
 import com.nexusmedia.nexussms.data.models.ContactAvatar
 import com.nexusmedia.nexussms.data.models.Template
+import com.nexusmedia.nexussms.data.models.UnifiedContact
 import com.nexusmedia.nexussms.data.converters.DateConverter
 import com.nexusmedia.nexussms.data.converters.JsonConverter
+import com.nexusmedia.nexussms.features.security.SpamDetectionEntity
+import com.nexusmedia.nexussms.features.security.SpamRuleEntity
+import com.nexusmedia.nexussms.features.security.SpamDao
 
 @Database(
     entities = [
@@ -33,9 +37,12 @@ import com.nexusmedia.nexussms.data.converters.JsonConverter
         BackupMetadata::class,
         AppSecuritySettings::class,
         ContactAvatar::class,
-        Template::class
+        Template::class,
+        UnifiedContact::class,
+        SpamDetectionEntity::class,
+        SpamRuleEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(DateConverter::class, JsonConverter::class)
@@ -52,6 +59,8 @@ abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun appSecuritySettingsDao(): AppSecuritySettingsDao
     abstract fun contactAvatarDao(): ContactAvatarDao
     abstract fun templateDao(): TemplateDao
+    abstract fun unifiedContactDao(): UnifiedContactDao
+    abstract fun spamDao(): SpamDao
 
     companion object {
         @Volatile

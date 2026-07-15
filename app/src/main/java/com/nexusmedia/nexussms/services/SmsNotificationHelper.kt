@@ -179,4 +179,28 @@ class SmsNotificationHelper @Inject constructor(
         context.getSystemService(NotificationManager::class.java)
             .cancel(conversationId.hashCode())
     }
+
+    fun showSpamWarningNotification(
+        senderPhone: String,
+        messageBody: String,
+        messageId: String
+    ) {
+        val notificationId = ("spam_$messageId").hashCode()
+
+        val builder = NotificationCompat.Builder(context, NexusSMSApplication.CHANNEL_SPAM)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("Spam Warning")
+            .setContentText("Suspicious message from $senderPhone")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("Suspicious message from $senderPhone:\n${messageBody.take(200)}")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.notify(notificationId, builder.build())
+    }
 }

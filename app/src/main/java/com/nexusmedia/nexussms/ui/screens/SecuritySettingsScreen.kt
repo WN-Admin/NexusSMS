@@ -10,13 +10,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,7 +54,13 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.nexusmedia.nexussms.security.KeyExchangeManager
+import com.nexusmedia.nexussms.security.SafetyNumberManager
 import com.nexusmedia.nexussms.ui.viewmodels.SecuritySettingsViewModel
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -277,6 +288,62 @@ fun SecuritySettingsScreen(
                 }
             }
 
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SecuritySection(
+                title = "Key Verification"
+            )
+
+            val entryPoint = remember {
+                EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    SecurityKeyVerificationEntryPoint::class.java
+                )
+            }
+            val safetyNumberManager = entryPoint.safetyNumberManager()
+            val keyExchangeManager = entryPoint.keyExchangeManager()
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { navController.navigate("key_verification/global") },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.VerifiedUser,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Verify Encryption Keys",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "Manage key verification for encrypted conversations",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -453,6 +520,13 @@ private fun LockTypeSelector(
             }
         )
     }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface SecurityKeyVerificationEntryPoint {
+    fun safetyNumberManager(): SafetyNumberManager
+    fun keyExchangeManager(): KeyExchangeManager
 }
 
 @Composable

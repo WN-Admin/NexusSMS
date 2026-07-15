@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
@@ -33,8 +34,12 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Shortcut
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.PeopleOutline
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -196,14 +201,20 @@ fun SettingsScreen(
                 SettingsSection(title = "Security & Privacy")
             }
             item { SettingsItem(title = "Security Settings", subtitle = "App lock, biometrics, privacy", icon = Icons.Default.Security) { navController.navigate("security") } }
+            item { SettingsItem(title = "Vault", subtitle = "Hidden conversations, decoy mode", icon = Icons.Default.Lock) { navController.navigate("vault_settings") } }
+            item { SettingsItem(title = "Spam Detection", subtitle = "Block scam & phishing messages", icon = Icons.Default.Warning) { navController.navigate("spam_detection") } }
             item { SettingsItem(title = "Blocklist", subtitle = "Manage blocked conversations", icon = Icons.Default.Block) { navController.navigate("blocklist") } }
             item { SettingsItem(title = "Backup & Restore", subtitle = "Google Drive backup", icon = Icons.Default.Cloud) { navController.navigate("backup") } }
+            item { SettingsItem(title = "WebDAV Backup", subtitle = "Self-hosted / Nextcloud", icon = Icons.Default.Storage) { navController.navigate("webdav_backup") } }
+            item { SettingsItem(title = "Automation Rules", subtitle = "Pattern-based auto-actions", icon = Icons.Default.AutoAwesome) { navController.navigate("automation") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSection(title = "Integrations")
             }
+            item { SettingsItem(title = "Channel Routing", subtitle = "Platform fallback & priorities", icon = Icons.Default.SwapHoriz) { navController.navigate("channel_routing") } }
             item { SettingsItem(title = "Social Media Accounts", subtitle = "Connect platforms", icon = Icons.Default.People) { navController.navigate("social") } }
+            item { SettingsItem(title = "Unified Contacts", subtitle = "Cross-platform contact cards", icon = Icons.Default.PeopleOutline) { navController.navigate("contacts") } }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))

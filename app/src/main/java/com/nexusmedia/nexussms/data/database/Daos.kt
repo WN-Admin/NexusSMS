@@ -173,6 +173,9 @@ interface ConversationDao {
         WHERE participantPhoneNumbers LIKE '%' || :phoneNumber || '%'
     """)
     suspend fun findConversationWithParticipant(phoneNumber: String): Conversation?
+
+    @Query("SELECT * FROM conversations")
+    suspend fun getAllConversationsList(): List<Conversation>
 }
 
 @Dao
