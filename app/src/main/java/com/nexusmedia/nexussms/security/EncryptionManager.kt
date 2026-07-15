@@ -128,7 +128,8 @@ class EncryptionManager @Inject constructor(
 
     fun shouldEncryptForContact(phoneNumber: String): Boolean {
         val encryptedContacts = retrieveSecureData("encrypted_contacts")
-        return encryptedContacts?.contains(phoneNumber) == true
+            ?: return false
+        return encryptedContacts.split(",").toSet().contains(phoneNumber)
     }
 
     fun setEncryptForContact(phoneNumber: String, encrypt: Boolean) {

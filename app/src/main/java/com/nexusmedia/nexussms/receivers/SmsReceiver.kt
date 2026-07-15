@@ -66,9 +66,8 @@ class SmsReceiver : BroadcastReceiver() {
                         conversationId = null
                     )
 
-                    if (spamAction == SpamAction.BLOCKED) {
-                        continue
-                    }
+                    val isSpamBlocked = spamAction == SpamAction.BLOCKED
+                    var skipNotification = isSpamBlocked
 
                     val existing = conversationRepository.findConversationWithParticipant(senderPhoneNumber)
                     val conversationId: String
@@ -78,9 +77,9 @@ class SmsReceiver : BroadcastReceiver() {
                         val newConversation = Conversation(
                             participantPhoneNumbers = senderPhoneNumber,
                             displayName = senderPhoneNumber,
-                            lastMessage = messageBody,
+                            lastMessage = if (isSpamBlocked) "" else messageBody,
                             lastMessageTime = timestamp,
-                            unreadCount = 1
+                            unreadCount = if (isSpamBlocked) 0 else 1
                         )
                         conversationRepository.insertConversation(newConversation)
                         conversationId = newConversation.id
@@ -88,15 +87,19 @@ class SmsReceiver : BroadcastReceiver() {
                     } else {
                         conversationId = existing.id
                         if (existing.isBlocked) {
-                            continue
+                            skipNotification = true
                         }
-                        val updated = existing.copy(
-                            lastMessage = messageBody,
-                            lastMessageTime = timestamp,
-                            unreadCount = existing.unreadCount + 1
-                        )
-                        conversationRepository.updateConversation(updated)
-                        conversationForNotify = updated
+                        if (!existing.isBlocked) {
+                            val updated = existing.copy(
+                                lastMessage = messageBody,
+                                lastMessageTime = timestamp,
+                                unreadCount = existing.unreadCount + 1
+                            )
+                            conversationRepository.updateConversation(updated)
+                            conversationForNotify = updated
+                        } else {
+                            conversationForNotify = existing
+                        }
                     }
 
                     val messageId = UUID.randomUUID().toString()
@@ -169,7 +172,7 @@ class SmsReceiver : BroadcastReceiver() {
                         continue
                     }
 
-                    if (!conversationForNotify.isBlocked && !conversationForNotify.isMuted) {
+                    if (!skipNotification && !conversationForNotify.isBlocked && !conversationForNotify.isMuted) {
                         smsNotificationHelper.showIncomingMessageNotification(
                             conversation = conversationForNotify,
                             senderPhone = senderPhoneNumber,

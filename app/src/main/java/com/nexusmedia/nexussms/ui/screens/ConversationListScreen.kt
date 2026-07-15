@@ -374,8 +374,21 @@ fun ConversationListScreen(
                                     if (conversation.isMuted) viewModel.unmuteConversation(conversation.id)
                                     else viewModel.muteConversation(conversation.id)
                                 },
-                                onCallClick = { /* TODO: launch dialer */ },
-                                onViewInfoClick = { /* TODO: show contact info */ },
+                                onCallClick = {
+                                    val phone = conversation.participantPhoneNumbers
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_DIAL,
+                                        android.net.Uri.parse("tel:$phone")
+                                    )
+                                    context.startActivity(intent)
+                                },
+                                onViewInfoClick = {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        conversation.displayName.ifBlank { conversation.participantPhoneNumbers },
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
                                 onReportSpam = { spamReportConversation = conversation },
                                 onHideInVault = onHideInVault?.let { hide -> { hide(conversation) } },
                                 avatarPhotoUri = avatarCache[normalizedPhone]
@@ -419,8 +432,21 @@ fun ConversationListScreen(
                                     if (conversation.isMuted) viewModel.unmuteConversation(conversation.id)
                                     else viewModel.muteConversation(conversation.id)
                                 },
-                                onCallClick = { /* TODO: launch dialer */ },
-                                onViewInfoClick = { /* TODO: show contact info */ },
+                                onCallClick = {
+                                    val phone = conversation.participantPhoneNumbers
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_DIAL,
+                                        android.net.Uri.parse("tel:$phone")
+                                    )
+                                    context.startActivity(intent)
+                                },
+                                onViewInfoClick = {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        conversation.displayName.ifBlank { conversation.participantPhoneNumbers },
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
                                 onReportSpam = { spamReportConversation = conversation },
                                 onHideInVault = onHideInVault?.let { hide -> { hide(conversation) } },
                                 avatarPhotoUri = avatarCache[normalizedPhone]

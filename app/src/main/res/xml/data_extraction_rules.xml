@@ -1,12 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <!-- Include shared preferences for settings/themes -->
         <include domain="sharedpref" path="." />
-        <include domain="database" path="." />
+        
+        <!-- EXCLUDE all databases — SMS content, messages, conversations, spam data,
+             automation rules, and encryption keys must never leave the device via
+             cloud backup. Use the app's own encrypted backup path instead. -->
+        <exclude domain="database" path="." />
+        
+        <!-- Exclude cache and system files -->
         <exclude domain="file" path="cache/" />
         <exclude domain="file" path="code_cache/" />
+        
+        <!-- Exclude encrypted key material -->
+        <exclude domain="sharedpref" path="secret_shared_prefs" />
+        <exclude domain="sharedpref" path="vault_prefs" />
+        <exclude domain="sharedpref" path="key_exchange_prefs" />
     </cloud-backup>
     <device-transfer>
+        <!-- Device transfer (e.g. Android Switch) — include databases for migration
+             but only non-encrypted user data. Encrypted data will be unreadable
+             without the original keystore anyway. -->
         <include domain="sharedpref" path="." />
         <include domain="database" path="." />
         <exclude domain="file" path="cache/" />

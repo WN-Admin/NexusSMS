@@ -13,8 +13,14 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 
 /**
- * RCS (Rich Communication Services) implementation
- * Provides a proprietary protocol similar to Google Messages RCS
+ * RCS (Rich Communication Services) — LOCAL-ONLY STUB
+ *
+ * All send methods write to the local Room DB only. There is NO network
+ * transport layer — messages are marked "SENT" without any actual delivery.
+ * DO NOT rely on this for real messaging until a proper RCS/IMS stack is wired.
+ *
+ * TODO: Implement actual RCS transport (IMS/MAPI/OMA-CP) or remove this stub.
+ * TODO: Wire to carrier RCS provisioning API for capability checks.
  */
 @Singleton
 class RcsService @Inject constructor(
@@ -33,6 +39,11 @@ class RcsService @Inject constructor(
         val supportsGiphy: Boolean
     )
 
+    /**
+     * STUB: Inserts message into local DB only. No network delivery.
+     * TODO: Implement actual RCS send via IMS/MAPI before enabling in UI.
+     */
+    @Deprecated("Local-only stub — no network transport", level = DeprecationLevel.WARNING)
     suspend fun sendRcsMessage(
         phoneNumber: String,
         content: String,

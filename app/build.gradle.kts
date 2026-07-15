@@ -24,10 +24,17 @@ android {
 
     signingConfigs {
         create("app") {
+            val localPropsFile = rootProject.file("local.properties")
+            val localProps = if (localPropsFile.exists()) {
+                localPropsFile.readText().lines().associate { line ->
+                    val parts = line.split("=", limit = 2)
+                    if (parts.size == 2) parts[0].trim() to parts[1].trim() else "" to ""
+                }.filterKeys { it.isNotEmpty() }
+            } else emptyMap()
             storeFile = file("release.keystore")
-            storePassword = "nexussms123"
-            keyAlias = "nexussms"
-            keyPassword = "nexussms123"
+            storePassword = localProps["STORE_PASSWORD"] ?: System.getenv("STORE_PASSWORD") ?: ""
+            keyAlias = localProps["KEY_ALIAS"] ?: System.getenv("KEY_ALIAS") ?: "nexussms"
+            keyPassword = localProps["KEY_PASSWORD"] ?: System.getenv("KEY_PASSWORD") ?: ""
         }
     }
 

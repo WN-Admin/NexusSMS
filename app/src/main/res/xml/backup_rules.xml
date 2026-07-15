@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Backup shared preferences, databases, and other app data -->
+    <!-- Include shared preferences for settings/themes -->
     <include domain="sharedpref" path="." />
-    <include domain="database" path="." />
+    
+    <!-- Include non-sensitive files -->
     <include domain="file" path="." />
+    
+    <!-- EXCLUDE all databases — SMS content, messages, conversations, spam data,
+         automation rules, and encryption keys must never leave the device via
+         Android auto-backup. Use the app's own encrypted backup path instead. -->
+    <exclude domain="database" path="." />
     
     <!-- Exclude cache and temporary files -->
     <exclude domain="file" path="cache/" />
@@ -11,4 +17,9 @@
     
     <!-- Exclude system-generated files -->
     <exclude domain="file" path="code_cache/" />
+    
+    <!-- Exclude EncryptedSharedPreferences key material -->
+    <exclude domain="sharedpref" path="secret_shared_prefs" />
+    <exclude domain="sharedpref" path="vault_prefs" />
+    <exclude domain="sharedpref" path="key_exchange_prefs" />
 </full-backup-content>
