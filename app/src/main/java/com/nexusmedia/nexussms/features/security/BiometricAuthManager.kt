@@ -11,15 +11,14 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.security.MessageDigest
-import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class BiometricAuthManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val appSecuritySettingsDao: AppSecuritySettingsDao
+    private val appSecuritySettingsDao: AppSecuritySettingsDao,
+    private val appLockManager: AppLockManager
 ) {
     companion object {
         private const val TAG = "BiometricAuthManager"
@@ -129,35 +128,11 @@ class BiometricAuthManager @Inject constructor(
         biometricPrompt.authenticate(promptInfo)
     }
 
-    fun hashPin(pin: String): String {
-        return try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            val hash = digest.digest(pin.toByteArray(Charsets.UTF_8))
-            Base64.getEncoder().encodeToString(hash)
-        } catch (e: Exception) {
-            Timber.e(TAG, "Failed to hash pin: ${e.message}")
-            pin
-        }
-    }
-
-    suspend fun setupAppLock(lockType: String, lockValue: String?): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val existing = appSecuritySettingsDao.getSecuritySettingsSync()
-            val hashedValue = if (lockValue != null) hashPin(lockValue) else null
-
-            val settings = (existing ?: AppSecuritySettings()).copy(
-                appLockEnabled = true,
-                appLockType = lockType,
-                appLockValue = hashedValue,
-                appLockTimeout = SESSION_TIMEOUT_MS,
-                updatedAt = System.currentTimeMillis()
-            )
-            appSecuritySettingsDao.insertSettings(settings)
-            Timber.d("App lock setup: $lockType")
+    suspend fun setupAppLock(lockType: String, lockValue: String?): Result<Unit> {
+        return if (lockValue != null) {
+            appLockManager.setLock(lockType, lockValue)
+        } else {
             Result.success(Unit)
-        } catch (e: Exception) {
-            Timber.e(TAG, "Failed to setup app lock: ${e.message}")
-            Result.failure(e)
         }
     }
 

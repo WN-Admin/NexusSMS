@@ -6,7 +6,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.database.AppSecuritySettingsDao
-import com.nexusmedia.nexussms.data.models.AppSecuritySettings
+import com.nexusmedia.nexussms.features.security.AppLockManager
 import com.nexusmedia.nexussms.features.security.BiometricAuthManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -16,14 +16,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import java.security.MessageDigest
-import java.util.Base64
 import javax.inject.Inject
 
 @HiltViewModel
 class AppLockViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val appSecuritySettingsDao: AppSecuritySettingsDao,
+    private val appLockManager: AppLockManager,
     private val biometricAuthManager: BiometricAuthManager
 ) : ViewModel() {
 
@@ -42,12 +41,12 @@ class AppLockViewModel @Inject constructor(
     private val _isAuthenticated = MutableStateFlow(false)
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 
-    private var settings: AppSecuritySettings? = null
+    private val _lockoutRemaining = MutableStateFlow(0)
+    val lockoutRemaining: StateFlow<Int> = _lockoutRemaining.asStateFlow()
 
     init {
         appSecuritySettingsDao.getSecuritySettings()
             .onEach { sec ->
-                settings = sec
                 _isLocked.value = sec?.isSessionLocked ?: true
                 _biometricAvailable.value = checkBiometricAvailability() && (sec?.biometricEnabled == true)
             }
@@ -74,20 +73,37 @@ class AppLockViewModel @Inject constructor(
     }
 
     fun verifyPin(pin: String) {
-        val savedValue = settings?.appLockValue
-        val hashedPin = hashPin(pin)
-        if (savedValue == null || hashedPin == savedValue) {
-            _isAuthenticated.value = true
-            _isLocked.value = false
-            _error.value = null
-            _pinInput.value = ""
-            viewModelScope.launch {
+        viewModelScope.launch {
+            val remaining = appLockManager.getLockoutRemainingSeconds()
+            if (remaining > 0) {
+                _error.value = "Too many attempts. Try again in ${remaining}s"
+                _pinInput.value = ""
+                return@launch
+            }
+
+            val pinConfigured = appLockManager.isPinConfigured()
+            if (!pinConfigured) {
+                _error.value = "No PIN configured"
+                return@launch
+            }
+
+            val success = appLockManager.verifyLock(pin)
+            if (success) {
+                _isAuthenticated.value = true
+                _isLocked.value = false
+                _error.value = null
+                _pinInput.value = ""
                 appSecuritySettingsDao.updateLastAuthTime(System.currentTimeMillis())
                 appSecuritySettingsDao.updateSessionLocked(false)
+            } else {
+                val newRemaining = appLockManager.getLockoutRemainingSeconds()
+                _error.value = if (newRemaining > 0) {
+                    "Too many attempts. Try again in ${newRemaining}s"
+                } else {
+                    "Incorrect PIN"
+                }
+                _pinInput.value = ""
             }
-        } else {
-            _error.value = "Incorrect PIN"
-            _pinInput.value = ""
         }
     }
 
@@ -99,16 +115,6 @@ class AppLockViewModel @Inject constructor(
             onSuccess = { onBiometricAuthenticated() },
             onError = { _error.value = it }
         )
-    }
-
-    private fun hashPin(pin: String): String {
-        return try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            val hash = digest.digest(pin.toByteArray(Charsets.UTF_8))
-            Base64.getEncoder().encodeToString(hash)
-        } catch (_: Exception) {
-            pin
-        }
     }
 
     fun updatePinInput(value: String) {

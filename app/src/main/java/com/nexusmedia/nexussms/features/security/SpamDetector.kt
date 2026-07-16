@@ -235,7 +235,6 @@ class SpamDetector @Inject constructor(
 
     fun analyzeMessage(message: String): DetectionResult {
         val matchedPatterns = mutableListOf<SpamPattern>()
-        var maxRiskLevel = RiskLevel.LOW
 
         for (pattern in patterns) {
             var matched = false
@@ -260,30 +259,35 @@ class SpamDetector @Inject constructor(
 
             if (matched) {
                 matchedPatterns.add(pattern)
-                if (pattern.riskLevel.ordinal > maxRiskLevel.ordinal) {
-                    maxRiskLevel = pattern.riskLevel
-                }
             }
         }
 
+        val romancePatterns = matchedPatterns.filter { it.category == SpamCategory.ROMANCE_SCAM }
+        val nonRomancePatterns = matchedPatterns.filter { it.category != SpamCategory.ROMANCE_SCAM }
+        val effectivePatterns = if (romancePatterns.size >= 2) {
+            matchedPatterns
+        } else {
+            nonRomancePatterns
+        }
+
         val confidence = when {
-            matchedPatterns.isEmpty() -> 0f
-            matchedPatterns.size == 1 -> 0.6f
-            matchedPatterns.size == 2 -> 0.75f
-            matchedPatterns.size == 3 -> 0.85f
+            effectivePatterns.isEmpty() -> 0f
+            effectivePatterns.size == 1 -> 0.6f
+            effectivePatterns.size == 2 -> 0.75f
+            effectivePatterns.size == 3 -> 0.85f
             else -> 0.95f
         }
 
-        val adjustedConfidence = if (matchedPatterns.any { it.riskLevel == RiskLevel.CRITICAL }) {
+        val adjustedConfidence = if (effectivePatterns.any { it.riskLevel == RiskLevel.CRITICAL }) {
             (confidence + 0.2f).coerceAtMost(1f)
         } else {
             confidence
         }
 
         val result = DetectionResult(
-            isSpam = matchedPatterns.isNotEmpty(),
-            riskLevel = maxRiskLevel,
-            matchedPatterns = matchedPatterns,
+            isSpam = effectivePatterns.isNotEmpty(),
+            riskLevel = if (effectivePatterns.isNotEmpty()) effectivePatterns.maxOf { it.riskLevel } else RiskLevel.LOW,
+            matchedPatterns = effectivePatterns,
             confidence = adjustedConfidence,
             messagePreview = message.take(100)
         )

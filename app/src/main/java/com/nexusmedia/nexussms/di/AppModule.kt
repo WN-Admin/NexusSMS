@@ -165,21 +165,10 @@ object AppModule {
         @ApplicationContext context: Context
     ): EncryptionManager = EncryptionManager(context)
 
-    @Provides
-    @Singleton
-    fun provideBiometricAuthManager(
-        @ApplicationContext context: Context,
-        appSecuritySettingsDao: AppSecuritySettingsDao
-    ): BiometricAuthManager = BiometricAuthManager(context, appSecuritySettingsDao)
+    // BiometricAuthManager, AppLockManager use @Inject constructors — resolved by Hilt automatically.
 
     // MessagingPreferences, MmsHelper, SmsSender, SmsNotificationHelper, ScheduledMessageScheduler,
     // ChannelRouter, ChannelRoutingManager use @Inject constructors — resolved by Hilt automatically.
-
-    @Provides
-    @Singleton
-    fun provideAppLockManager(
-        appSecuritySettingsDao: AppSecuritySettingsDao
-    ): AppLockManager = AppLockManager(appSecuritySettingsDao)
 
     @Provides
     @Singleton

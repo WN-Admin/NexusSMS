@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.database.AppSecuritySettingsDao
 import com.nexusmedia.nexussms.data.models.AppSecuritySettings
+import com.nexusmedia.nexussms.features.security.AppLockManager
 import com.nexusmedia.nexussms.features.security.BiometricAuthManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SecuritySettingsViewModel @Inject constructor(
     private val appSecuritySettingsDao: AppSecuritySettingsDao,
-    private val biometricAuthManager: BiometricAuthManager
+    private val biometricAuthManager: BiometricAuthManager,
+    private val appLockManager: AppLockManager
 ) : ViewModel() {
 
     private val _settings = MutableStateFlow<AppSecuritySettings?>(null)
@@ -55,13 +57,9 @@ class SecuritySettingsViewModel @Inject constructor(
         update { copy(appLockType = type) }
     }
 
-    fun setLockValue(value: String) {
-        update { copy(appLockValue = value) }
-    }
-
     fun setupAppLock(pin: String) {
         viewModelScope.launch {
-            biometricAuthManager.setupAppLock("PIN", pin)
+            appLockManager.setLock("PIN", pin)
         }
     }
 
