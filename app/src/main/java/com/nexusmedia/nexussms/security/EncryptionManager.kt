@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import timber.log.Timber
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -141,5 +142,46 @@ class EncryptionManager @Inject constructor(
 
     fun isEncryptedMessage(message: String): Boolean {
         return message.startsWith("ENC:")
+    }
+
+    fun encryptToken(token: String): String {
+        if (token.isEmpty()) return token
+        return try {
+            "ENC:" + encryptAES256(token)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to encrypt token")
+            token
+        }
+    }
+
+    fun decryptToken(encryptedToken: String): String {
+        if (encryptedToken.isEmpty()) return encryptedToken
+        if (!encryptedToken.startsWith("ENC:")) return encryptedToken
+        return try {
+            decryptAES256(encryptedToken.removePrefix("ENC:"))
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to decrypt token")
+            ""
+        }
+    }
+
+    fun encryptForContact(plaintext: String, sharedSecretKey: SecretKey): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, sharedSecretKey)
+        val iv = cipher.iv
+        val encryptedBytes = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        val combined = iv + encryptedBytes
+        return "ENC:" + Base64.encodeToString(combined, Base64.DEFAULT)
+    }
+
+    fun decryptForContact(encryptedText: String, sharedSecretKey: SecretKey): String {
+        val base64 = encryptedText.removePrefix("ENC:")
+        val combined = Base64.decode(base64, Base64.DEFAULT)
+        val iv = combined.sliceArray(0 until 12)
+        val encryptedBytes = combined.sliceArray(12 until combined.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = GCMParameterSpec(128, iv)
+        cipher.init(Cipher.DECRYPT_MODE, sharedSecretKey, spec)
+        return String(cipher.doFinal(encryptedBytes), Charsets.UTF_8)
     }
 }

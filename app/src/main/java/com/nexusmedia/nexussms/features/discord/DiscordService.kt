@@ -6,6 +6,7 @@ import com.nexusmedia.nexussms.data.models.SocialAccount
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
+import com.nexusmedia.nexussms.security.EncryptionManager
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -34,7 +35,8 @@ data class DiscordSyncResult(
 class DiscordService @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val socialAccountRepository: SocialAccountRepository
+    private val socialAccountRepository: SocialAccountRepository,
+    private val encryptionManager: EncryptionManager
 ) {
 
     private fun getApi(): DiscordApi {
@@ -83,7 +85,7 @@ class DiscordService @Inject constructor(
                 userId = result.userId ?: "",
                 username = result.username ?: "",
                 displayName = result.username ?: "",
-                accessToken = botToken,
+                accessToken = encryptionManager.encryptToken(botToken),
                 isConnected = true,
                 updatedAt = System.currentTimeMillis(),
                 createdAt = existing?.createdAt ?: System.currentTimeMillis()
@@ -114,7 +116,7 @@ class DiscordService @Inject constructor(
         if (account == null || !account.isConnected) {
             return DiscordSyncResult(false, error = "Discord bot not connected")
         }
-        val token = account.accessToken
+        val token = encryptionManager.decryptToken(account.accessToken)
         if (token.isBlank()) {
             return DiscordSyncResult(false, error = "No bot token")
         }
@@ -254,7 +256,7 @@ class DiscordService @Inject constructor(
 
         return try {
             val api = getApi()
-            api.sendMessage(authHeader(account.accessToken), channelId, DiscordSendMessageRequest(content = content))
+            api.sendMessage(authHeader(encryptionManager.decryptToken(account.accessToken)), channelId, DiscordSendMessageRequest(content = content))
             true
         } catch (e: Exception) {
             Timber.e(e, "Discord send failed")

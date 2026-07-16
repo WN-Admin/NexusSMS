@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 
@@ -154,7 +155,7 @@ class SmsReceiver : BroadcastReceiver() {
                                 actionExecutor.execute(action, msg)
                             }
                         }
-                    } catch (_: Exception) { }
+                    } catch (e: Exception) { Timber.w(e, "Automation rule evaluation failed") }
 
                     if (spamAction == SpamAction.WARNING) {
                         val spamEnabled = spamBlocklistManager.spamNotificationEnabled.first()

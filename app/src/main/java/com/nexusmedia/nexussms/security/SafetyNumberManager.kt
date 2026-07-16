@@ -1,9 +1,14 @@
 package com.nexusmedia.nexussms.security
 
 import android.content.Context
+import android.util.Base64
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.qualifiers.ApplicationContext
+import timber.log.Timber
 import java.security.MessageDigest
-import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,7 +33,7 @@ enum class VerificationMethod {
 data class KeyFingerprint(
     val deviceId: String,
     val publicKey: ByteArray,
-    val algorithm: String = "AES-256-GCM",
+    val algorithm: String = "EC-P256",
     val createdAt: Long = System.currentTimeMillis()
 ) {
     override fun equals(other: Any?): Boolean {
@@ -51,12 +56,33 @@ class SafetyNumberManager @Inject constructor(
     private val encryptionManager: EncryptionManager
 ) {
     companion object {
+        private const val TAG = "SafetyNumberManager"
         private const val SAFETY_NUMBER_LENGTH = 30
         private const val FINGERPRINT_ALGORITHM = "SHA-256"
         private const val QR_PREFIX = "nexussms://verify/"
+        private const val PREFS_NAME = "safety_number_prefs"
+        private const val VERIFIED_KEYS_KEY = "verified_keys"
     }
 
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    private val prefs = EncryptedSharedPreferences.create(
+        context,
+        PREFS_NAME,
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
+
+    private val gson = Gson()
+
     private val verifiedKeys = mutableMapOf<String, SafetyNumber>()
+
+    init {
+        loadVerifiedKeys()
+    }
 
     fun generateSafetyNumber(contactId: String, myPublicKey: ByteArray, theirPublicKey: ByteArray): SafetyNumber {
         val myFingerprint = generateFingerprint(myPublicKey)
@@ -106,6 +132,8 @@ class SafetyNumberManager @Inject constructor(
             verifiedAt = System.currentTimeMillis(),
             verificationMethod = method
         )
+        saveVerifiedKeys()
+        Timber.d("Safety number verified for %s via %s", contactId, method)
     }
 
     fun isVerified(contactId: String): Boolean {
@@ -118,10 +146,12 @@ class SafetyNumberManager @Inject constructor(
 
     fun storeSafetyNumber(safetyNumber: SafetyNumber) {
         verifiedKeys[safetyNumber.contactId] = safetyNumber
+        saveVerifiedKeys()
     }
 
     fun clearVerification(contactId: String) {
         verifiedKeys.remove(contactId)
+        saveVerifiedKeys()
     }
 
     private fun generateFingerprint(publicKey: ByteArray): String {
@@ -147,7 +177,23 @@ class SafetyNumberManager @Inject constructor(
 
     fun generateRandomKey(): ByteArray {
         val key = ByteArray(32)
-        SecureRandom().nextBytes(key)
+        java.security.SecureRandom().nextBytes(key)
         return key
+    }
+
+    private fun saveVerifiedKeys() {
+        val json = gson.toJson(verifiedKeys)
+        prefs.edit().putString(VERIFIED_KEYS_KEY, json).apply()
+    }
+
+    private fun loadVerifiedKeys() {
+        val json = prefs.getString(VERIFIED_KEYS_KEY, null) ?: return
+        try {
+            val type = object : TypeToken<Map<String, SafetyNumber>>() {}.type
+            val loaded: Map<String, SafetyNumber> = gson.fromJson(json, type)
+            verifiedKeys.putAll(loaded)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to load verified keys")
+        }
     }
 }

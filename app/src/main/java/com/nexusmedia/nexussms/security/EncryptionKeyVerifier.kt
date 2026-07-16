@@ -1,5 +1,6 @@
 package com.nexusmedia.nexussms.security
 
+import android.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,15 +23,16 @@ class EncryptionKeyVerifier @Inject constructor(
     private val safetyNumberManager: SafetyNumberManager,
     private val keyExchangeManager: KeyExchangeManager
 ) {
-    fun verifyContact(contactId: String, theirPublicKey: ByteArray): VerificationResult {
+    fun verifyContact(contactId: String, theirPublicKeyBytes: ByteArray): VerificationResult {
         val existingKeys = keyExchangeManager.getReceivedKeys(contactId)
 
         if (existingKeys.isEmpty()) {
             return VerificationResult.NewKey
         }
 
+        val theirPublicKeyBase64 = Base64.encodeToString(theirPublicKeyBytes, Base64.NO_WRAP)
         val matchingKey = existingKeys.find {
-            it.publicKey.contentEquals(theirPublicKey)
+            it.publicKey == theirPublicKeyBase64
         }
 
         return if (matchingKey != null) {

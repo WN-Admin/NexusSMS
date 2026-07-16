@@ -2,10 +2,11 @@ package com.nexusmedia.nexussms.features.matrix
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.nexusmedia.nexussms.data.models.SocialAccount
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
+import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.features.matrix.MatrixClient
+import com.nexusmedia.nexussms.data.models.SocialAccount
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.first
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,6 +24,7 @@ data class MatrixAuthResult(
 class MatrixAuthService @Inject constructor(
     private val matrixClient: MatrixClient,
     private val socialAccountRepository: SocialAccountRepository,
+    private val encryptionManager: EncryptionManager,
     @ApplicationContext private val context: Context
 ) {
     private val prefs: SharedPreferences by lazy {
@@ -66,7 +68,8 @@ class MatrixAuthService @Inject constructor(
 
     suspend fun restoreSession(): Boolean {
         val homeserver = prefs.getString("homeserver", null) ?: return false
-        val token = prefs.getString("access_token", null) ?: return false
+        val encryptedToken = prefs.getString("access_token", null) ?: return false
+        val token = encryptionManager.decryptToken(encryptedToken)
         val userId = prefs.getString("user_id", null) ?: return false
 
         matrixClient.configure(homeserver, token)
@@ -103,7 +106,10 @@ class MatrixAuthService @Inject constructor(
 
     fun getUserId(): String? = prefs.getString("user_id", null)
 
-    fun getAccessToken(): String? = prefs.getString("access_token", null)
+    fun getAccessToken(): String? {
+        val encrypted = prefs.getString("access_token", null) ?: return null
+        return encryptionManager.decryptToken(encrypted)
+    }
 
     fun getHomeserver(): String? = prefs.getString("homeserver", null)
 
@@ -113,7 +119,7 @@ class MatrixAuthService @Inject constructor(
         prefs.edit()
             .putString("homeserver", homeserver)
             .putString("user_id", userId)
-            .putString("access_token", accessToken)
+            .putString("access_token", encryptionManager.encryptToken(accessToken))
             .putString("device_id", deviceId)
             .apply()
 
@@ -128,7 +134,7 @@ class MatrixAuthService @Inject constructor(
             userId = userId,
             username = username,
             displayName = userId.substringBefore(":").removePrefix("@"),
-            accessToken = accessToken,
+            accessToken = encryptionManager.encryptToken(accessToken),
             isConnected = true,
             settings = """{"homeserver":"$homeserver","deviceId":"${getDeviceId() ?: ""}"}""",
             updatedAt = System.currentTimeMillis(),

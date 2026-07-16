@@ -1,5 +1,7 @@
 package com.nexusmedia.nexussms.features.automation
 
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -10,13 +12,27 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.core.app.NotificationCompat
+import com.nexusmedia.nexussms.MainActivity
+import com.nexusmedia.nexussms.data.repository.ConversationRepository
+import com.nexusmedia.nexussms.data.repository.MessageRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import timber.log.Timber
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ActionExecutor @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val conversationRepository: ConversationRepository,
+    private val messageRepository: MessageRepository
 ) {
     suspend fun execute(action: RuleAction, message: IncomingMessage): Result<Unit> {
         return try {
@@ -86,39 +102,109 @@ class ActionExecutor @Inject constructor(
 
     private suspend fun autoReply(message: IncomingMessage, config: Map<String, String>) {
         val replyMessage = config["message"] ?: return
-        // Would use SmsSender in real implementation
+        try {
+            @Suppress("DEPRECATION")
+            val smsManager = android.telephony.SmsManager.getDefault()
+            smsManager.sendTextMessage(
+                message.senderNumber, null, replyMessage, null, null
+            )
+            Timber.d("Auto-reply sent to %s", message.senderNumber)
+        } catch (e: Exception) {
+            Timber.e(e, "Auto-reply failed")
+        }
     }
 
-    private fun archiveConversation(message: IncomingMessage) {
-        // Would update conversation in database
+    private suspend fun archiveConversation(message: IncomingMessage) {
+        val conversation = conversationRepository.findConversationWithParticipant(message.senderNumber)
+        if (conversation != null) {
+            conversationRepository.updateConversation(conversation.copy(isArchived = true))
+            Timber.d("Archived conversation with %s", message.senderNumber)
+        }
     }
 
-    private fun markAsRead(message: IncomingMessage) {
-        // Would mark message as read
+    private suspend fun markAsRead(message: IncomingMessage) {
+        if (message.conversationId.isNotEmpty()) {
+            conversationRepository.markConversationAsRead(message.conversationId)
+            Timber.d("Marked conversation %s as read", message.conversationId)
+        }
     }
 
-    private fun deleteMessage(message: IncomingMessage) {
-        // Would delete the message
+    private suspend fun deleteMessage(message: IncomingMessage) {
+        if (message.id.isNotEmpty()) {
+            messageRepository.deleteMessagesByIds(listOf(message.id))
+            Timber.d("Deleted message %s", message.id)
+        }
     }
 
-    private fun muteConversation(message: IncomingMessage) {
-        // Would mute the conversation
+    private suspend fun muteConversation(message: IncomingMessage) {
+        val conversation = conversationRepository.findConversationWithParticipant(message.senderNumber)
+        if (conversation != null) {
+            conversationRepository.updateConversation(conversation.copy(isMuted = true))
+            Timber.d("Muted conversation with %s", message.senderNumber)
+        }
     }
 
     private fun addLabel(message: IncomingMessage, config: Map<String, String>) {
         val label = config["label"] ?: return
-        // Would add label to message
+        Timber.d("Label action: would tag conversation with '%s' (label storage not yet implemented)", label)
     }
 
     private fun showNotification(message: IncomingMessage, config: Map<String, String>) {
         val title = config["title"] ?: "Rule Triggered"
         val text = config["text"] ?: message.content.take(100)
-        // Would show notification
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            putExtra("openConversation", message.senderNumber)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, message.senderNumber.hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val channelId = "automation_channel"
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+        notificationManager.notify(message.senderNumber.hashCode(), notification)
+        Timber.d("Showed automation notification: %s", title)
     }
 
     private suspend fun sendWebhook(message: IncomingMessage, config: Map<String, String>) {
         val url = config["url"] ?: return
-        // Would make HTTP POST request
+        withContext(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .build()
+
+                val json = """
+                    {
+                        "sender": "${message.senderNumber}",
+                        "content": "${message.content.replace("\"", "\\\"")}",
+                        "timestamp": ${message.timestamp},
+                        "conversationId": "${message.conversationId}"
+                    }
+                """.trimIndent()
+
+                val body = json.toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                Timber.d("Webhook response: %d", response.code)
+            } catch (e: Exception) {
+                Timber.e(e, "Webhook failed: %s", url)
+            }
+        }
     }
 
     private fun playSound(config: Map<String, String>) {
@@ -145,7 +231,11 @@ class ActionExecutor @Inject constructor(
         }
     }
 
-    private fun blockSender(message: IncomingMessage) {
-        // Would add sender to blocklist
+    private suspend fun blockSender(message: IncomingMessage) {
+        val conversation = conversationRepository.findConversationWithParticipant(message.senderNumber)
+        if (conversation != null) {
+            conversationRepository.updateConversation(conversation.copy(isBlocked = true))
+            Timber.d("Blocked sender %s", message.senderNumber)
+        }
     }
 }

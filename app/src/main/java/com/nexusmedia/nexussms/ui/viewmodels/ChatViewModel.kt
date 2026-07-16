@@ -156,7 +156,7 @@ class ChatViewModel @Inject constructor(
 
         if (_currentConversation.value?.sourcePlatform == "MATRIX") {
             viewModelScope.launch {
-                try { matrixSyncService.syncForRoom(_currentConversation.value?.sourceAccountId ?: "") } catch (_: Exception) {}
+                try { matrixSyncService.syncForRoom(_currentConversation.value?.sourceAccountId ?: "") } catch (e: Exception) { Timber.w(e, "Matrix sync failed") }
             }
         }
     }

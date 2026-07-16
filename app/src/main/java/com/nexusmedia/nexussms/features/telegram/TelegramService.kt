@@ -6,6 +6,7 @@ import com.nexusmedia.nexussms.data.models.SocialAccount
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
+import com.nexusmedia.nexussms.security.EncryptionManager
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -34,7 +35,8 @@ data class TelegramSyncResult(
 class TelegramService @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val socialAccountRepository: SocialAccountRepository
+    private val socialAccountRepository: SocialAccountRepository,
+    private val encryptionManager: EncryptionManager
 ) {
 
     private var currentApi: TelegramBotApi? = null
@@ -90,7 +92,7 @@ class TelegramService @Inject constructor(
                 userId = result.botId.toString(),
                 username = result.botUsername ?: "",
                 displayName = "@${result.botUsername}",
-                accessToken = botToken,
+                accessToken = encryptionManager.encryptToken(botToken),
                 isConnected = true,
                 settings = """{"botId":${result.botId}}""",
                 updatedAt = System.currentTimeMillis(),
@@ -125,7 +127,7 @@ class TelegramService @Inject constructor(
         if (account == null || !account.isConnected) {
             return TelegramSyncResult(false, error = "Telegram bot not connected")
         }
-        val token = account.accessToken
+        val token = encryptionManager.decryptToken(account.accessToken)
         if (token.isBlank()) {
             return TelegramSyncResult(false, error = "No bot token")
         }
@@ -237,7 +239,7 @@ class TelegramService @Inject constructor(
         if (account == null || !account.isConnected) return false
 
         return try {
-            val api = getApi(account.accessToken)
+            val api = getApi(encryptionManager.decryptToken(account.accessToken))
             val response = api.sendMessage(TelegramSendMessageRequest(chatId = chatId, text = text))
             response.ok
         } catch (e: Exception) {

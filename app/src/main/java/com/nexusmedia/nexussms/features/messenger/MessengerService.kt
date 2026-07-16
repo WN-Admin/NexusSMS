@@ -6,6 +6,7 @@ import com.nexusmedia.nexussms.data.models.SocialAccount
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
+import com.nexusmedia.nexussms.security.EncryptionManager
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -34,7 +35,8 @@ data class MessengerSyncResult(
 class MessengerService @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val socialAccountRepository: SocialAccountRepository
+    private val socialAccountRepository: SocialAccountRepository,
+    private val encryptionManager: EncryptionManager
 ) {
 
     private fun getApi(): FacebookApi {
@@ -81,7 +83,7 @@ class MessengerService @Inject constructor(
                 userId = result.pageId ?: "",
                 username = result.pageName?.lowercase()?.replace(" ", "") ?: "",
                 displayName = result.pageName ?: "Facebook Messenger",
-                accessToken = pageToken,
+                accessToken = encryptionManager.encryptToken(pageToken),
                 isConnected = true,
                 settings = """{"pageId":"${result.pageId}","pageName":"${result.pageName}"}""",
                 updatedAt = System.currentTimeMillis(),
@@ -113,7 +115,7 @@ class MessengerService @Inject constructor(
         if (account == null || !account.isConnected) {
             return MessengerSyncResult(false, error = "Facebook Messenger not connected")
         }
-        val token = account.accessToken
+        val token = encryptionManager.decryptToken(account.accessToken)
         if (token.isBlank()) {
             return MessengerSyncResult(false, error = "No page token")
         }
@@ -254,7 +256,7 @@ class MessengerService @Inject constructor(
                 recipient = FacebookRecipient(id = recipientId),
                 message = FacebookMessageBody(text = text)
             )
-            val response = api.sendMessage(account.accessToken, request)
+            val response = api.sendMessage(encryptionManager.decryptToken(account.accessToken), request)
             response.messageId != null
         } catch (e: Exception) {
             Timber.e(e, "Messenger send failed")

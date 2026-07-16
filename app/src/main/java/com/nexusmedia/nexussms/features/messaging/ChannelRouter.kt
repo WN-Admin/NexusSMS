@@ -83,46 +83,47 @@ class ChannelRouter @Inject constructor(
             .sortedBy { it.priority }
 
         for (channel in sortedChannels) {
-            if (attempts.isNotEmpty() && channel.fallbackDelayMs > 0) {
-                Timber.d("ChannelRouter: waiting ${channel.fallbackDelayMs}ms before trying %s", channel.platform)
-                delay(channel.fallbackDelayMs)
-            }
+            val maxAttempts = channel.maxRetries + 1
+            for (attemptNum in 1..maxAttempts) {
+                if (attempts.isNotEmpty() && channel.fallbackDelayMs > 0) {
+                    delay(channel.fallbackDelayMs)
+                }
 
-            val result = try {
-                sendViaPlatform(channel.platform, message)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
+                val result = try {
+                    sendViaPlatform(channel.platform, message)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
 
-            val attempt = AttemptedChannel(
-                platform = channel.platform,
-                success = result.isSuccess,
-                error = result.exceptionOrNull()?.message
-            )
-            attempts.add(attempt)
-
-            updateChannelStats(channel.platform, result.isSuccess)
-
-            if (result.isSuccess) {
-                Timber.i("ChannelRouter: message sent via %s", channel.platform)
-                updateRoutingHistory(contactId, attempts)
-                updateLastUsedPlatform(contactId, channel.platform)
-                return RoutingResult(
-                    success = true,
-                    platformUsed = channel.platform,
-                    attempts = attempts
+                val attempt = AttemptedChannel(
+                    platform = channel.platform,
+                    success = result.isSuccess,
+                    error = result.exceptionOrNull()?.message
                 )
-            }
+                attempts.add(attempt)
 
-            Timber.w("ChannelRouter: %s failed: %s", channel.platform, attempt.error ?: "unknown")
+                updateChannelStats(channel.platform, result.isSuccess)
+
+                if (result.isSuccess) {
+                    Timber.i("ChannelRouter: message sent via %s (attempt %d/%d)", channel.platform, attemptNum, maxAttempts)
+                    updateRoutingHistory(contactId, attempts)
+                    updateLastUsedPlatform(contactId, channel.platform)
+                    return RoutingResult(
+                        success = true,
+                        platformUsed = channel.platform,
+                        attempts = attempts
+                    )
+                }
+
+                Timber.w("ChannelRouter: %s attempt %d/%d failed: %s", channel.platform, attemptNum, maxAttempts, attempt.error ?: "unknown")
+
+                if (attemptNum < maxAttempts) {
+                    Timber.d("ChannelRouter: retrying %s in %dms", channel.platform, channel.fallbackDelayMs)
+                }
+            }
 
             if (!effectiveConfig.fallbackEnabled) {
                 break
-            }
-
-            val channelAttempts = attempts.filter { it.platform == channel.platform }
-            if (channelAttempts.size >= channel.maxRetries + 1) {
-                continue
             }
         }
 
