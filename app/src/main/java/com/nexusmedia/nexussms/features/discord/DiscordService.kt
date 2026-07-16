@@ -7,7 +7,11 @@ import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -129,6 +133,7 @@ class DiscordService @Inject constructor(
             val existingConversations = conversationRepository.getAllConversations().first()
             var convsImported = 0
             var msgsImported = 0
+            var channelIndex = 0
 
             for (guild in guilds) {
                 val channels = try {
@@ -139,6 +144,10 @@ class DiscordService @Inject constructor(
                 }
 
                 for (channel in channels) {
+                    if (channelIndex > 0) {
+                        delay(500)
+                    }
+                    channelIndex++
                     val channelName = "#${channel.name ?: channel.id}"
                     val displayName = if (guild.name.isNotBlank()) {
                         "${guild.name} / $channelName"
@@ -173,7 +182,7 @@ class DiscordService @Inject constructor(
                     }
 
                     val messages = try {
-                        api.getMessages(header, channel.id, limit = 50)
+                        fetchMessagesWithRetry(api, header, channel.id, channelName)
                     } catch (e: Exception) {
                         Timber.w(e, "Failed to fetch messages for channel %s", channelName)
                         continue
@@ -261,6 +270,35 @@ class DiscordService @Inject constructor(
         } catch (e: Exception) {
             Timber.e(e, "Discord send failed")
             false
+        }
+    }
+
+    private suspend fun fetchMessagesWithRetry(
+        api: DiscordApi,
+        header: String,
+        channelId: String,
+        channelName: String,
+        maxRetries: Int = 3
+    ): List<DiscordMessage> {
+        var retries = 0
+        while (true) {
+            try {
+                return api.getMessages(header, channelId, limit = 50)
+            } catch (e: HttpException) {
+                if (e.code() == 429 && retries < maxRetries) {
+                    val retryAfter = try {
+                        val body = e.response()?.errorBody()?.string()
+                        val json = org.json.JSONObject(body ?: "{}")
+                        json.optDouble("retry_after", 2.0)
+                    } catch (_: Exception) { 2.0 }
+                    val delayMs = ((retryAfter + 0.5) * 1000).toLong()
+                    Timber.w("Discord rate limit hit on %s, retrying in %dms (attempt %d/%d)", channelName, delayMs, retries + 1, maxRetries)
+                    delay(delayMs)
+                    retries++
+                } else {
+                    throw e
+                }
+            }
         }
     }
 

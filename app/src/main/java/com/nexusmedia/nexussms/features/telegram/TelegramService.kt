@@ -1,5 +1,6 @@
 package com.nexusmedia.nexussms.features.telegram
 
+import android.content.Context
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.models.SocialAccount
@@ -7,6 +8,7 @@ import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
 import com.nexusmedia.nexussms.data.repository.SocialAccountRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -36,11 +38,21 @@ class TelegramService @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val socialAccountRepository: SocialAccountRepository,
-    private val encryptionManager: EncryptionManager
+    private val encryptionManager: EncryptionManager,
+    @ApplicationContext private val context: Context
 ) {
 
+    companion object {
+        private const val PREFS_NAME = "telegram_sync_state"
+        private const val KEY_LAST_UPDATE_ID = "last_update_id"
+    }
+
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
     private var currentApi: TelegramBotApi? = null
-    private var lastUpdateId: Long? = null
+    private var lastUpdateId: Long?
+        get() = prefs.getLong(KEY_LAST_UPDATE_ID, 0L).let { if (it == 0L) null else it }
+        set(value) { prefs.edit().putLong(KEY_LAST_UPDATE_ID, value ?: 0L).apply() }
 
     private fun getApi(token: String): TelegramBotApi {
         val baseUrl = "https://api.telegram.org/bot$token/"
@@ -153,10 +165,16 @@ class TelegramService @Inject constructor(
             val existingConversations = conversationRepository.getAllConversations().first()
 
             for (update in updates) {
-                val msg = update.message ?: update.channelPost ?: continue
-                if (msg.text.isNullOrBlank()) continue
+                val msg = update.message ?: update.channelPost
+                if (msg == null) {
+                    lastUpdateId = update.updateId + 1
+                    continue
+                }
+                lastUpdateId = update.updateId + 1
 
-                lastUpdateId = (update.updateId + 1)
+                val text = msg.text ?: msg.caption
+                val hasMedia = msg.photo != null || msg.document != null || msg.voice != null
+                if (text.isNullOrBlank() && !hasMedia) continue
 
                 val chatId = msg.chat.id
                 val chatName = msg.chat.displayName
@@ -190,11 +208,18 @@ class TelegramService @Inject constructor(
 
                 val isFromMe = msg.from?.isBot == true && msg.from.id.toString() == account.userId
 
+                val contentText = text ?: when {
+                    msg.photo != null -> "[Photo]"
+                    msg.document != null -> "[Document: ${msg.document.fileName ?: "file"}]"
+                    msg.voice != null -> "[Voice message]"
+                    else -> ""
+                }
+
                 val message = Message(
                     conversationId = convId,
                     senderPhoneNumber = if (isFromMe) "self" else "tg_${msg.from?.id ?: "unknown"}",
                     recipientPhoneNumber = "tg_$chatId",
-                    content = msg.text ?: msg.caption ?: "",
+                    content = contentText,
                     type = when {
                         msg.photo != null -> "IMAGE"
                         msg.document != null -> "FILE"
@@ -212,7 +237,7 @@ class TelegramService @Inject constructor(
 
                 conversationRepository.updateConversation(
                     (if (existing != null) conversation.copy(id = convId) else conversation.copy(id = convId)).copy(
-                        lastMessage = msg.text ?: msg.caption ?: "[media]",
+                        lastMessage = contentText.ifEmpty { "[media]" },
                         lastMessageTime = msg.date * 1000L,
                         updatedAt = System.currentTimeMillis()
                     )

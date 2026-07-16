@@ -74,4 +74,13 @@ interface MatrixApi {
         @Path("roomId") roomId: String,
         @Body body: Map<String, String>
     )
+
+    @GET("_matrix/client/v3/rooms/{roomId}/messages")
+    suspend fun getRoomMessages(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String,
+        @Query("from") from: String,
+        @Query("dir") dir: String = "b",
+        @Query("limit") limit: Int = 100
+    ): MatrixMessagesResponse
 }

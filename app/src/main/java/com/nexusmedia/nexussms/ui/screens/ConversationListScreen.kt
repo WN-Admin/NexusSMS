@@ -754,7 +754,7 @@ private fun ConversationItemRow(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = conversation.sourcePlatform.first().toString(),
+                    text = conversation.sourcePlatform.firstOrNull()?.toString() ?: "?",
                     color = Color.White,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold

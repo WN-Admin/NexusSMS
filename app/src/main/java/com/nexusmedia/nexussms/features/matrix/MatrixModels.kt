@@ -103,3 +103,10 @@ data class MatrixSendMessageFileBody(
 data class MatrixUploadResponse(
     @SerializedName("content_uri") val contentUri: String
 )
+
+data class MatrixMessagesResponse(
+    @SerializedName("start") val start: String?,
+    @SerializedName("end") val end: String?,
+    @SerializedName("chunk") val chunk: List<MatrixEvent>?,
+    @SerializedName("state") val state: List<MatrixEvent>?
+)
