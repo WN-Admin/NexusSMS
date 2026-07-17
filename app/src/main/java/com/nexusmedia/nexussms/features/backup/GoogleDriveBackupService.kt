@@ -9,14 +9,20 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
 import com.nexusmedia.nexussms.data.database.BackupMetadataDao
+import com.nexusmedia.nexussms.data.database.MessageDao
 import com.nexusmedia.nexussms.data.models.BackupMetadata
+import com.nexusmedia.nexussms.data.models.Conversation
+import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.models.Shortcut
 import com.nexusmedia.nexussms.data.models.Signature
 import com.nexusmedia.nexussms.data.models.Theme
+import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.ShortcutRepository
 import com.nexusmedia.nexussms.data.repository.SignatureRepository
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.backup.models.BackupData
+import com.nexusmedia.nexussms.features.backup.models.ConversationData
+import com.nexusmedia.nexussms.features.backup.models.MessageData
 import com.nexusmedia.nexussms.features.backup.models.ShortcutData
 import com.nexusmedia.nexussms.features.backup.models.SignatureData
 import com.nexusmedia.nexussms.features.backup.models.ThemeData
@@ -38,13 +44,15 @@ class GoogleDriveBackupService @Inject constructor(
     private val shortcutRepository: ShortcutRepository,
     private val signatureRepository: SignatureRepository,
     private val themeRepository: ThemeRepository,
+    private val conversationRepository: ConversationRepository,
+    private val messageDao: MessageDao,
     private val googleDriveClient: GoogleDriveClient,
     private val encryptionManager: EncryptionManager
 ) {
     companion object {
         private const val BACKUP_WORK_NAME = "nexussms_auto_backup"
         private const val ENCRYPTION_PREFIX = "ENC:"
-        private val ALL_DATA_TYPES = listOf("shortcuts", "signatures", "themes")
+        private val ALL_DATA_TYPES = listOf("shortcuts", "signatures", "themes", "conversations", "messages")
     }
 
     private val gson = Gson()
@@ -174,6 +182,55 @@ class GoogleDriveBackupService @Inject constructor(
                 themeRepository.insertTheme(theme)
             }
 
+            backupData.conversations.forEach { convData ->
+                val existing = conversationRepository.getConversationById(convData.id)
+                val conversation = Conversation(
+                    id = convData.id,
+                    participantPhoneNumbers = convData.participantPhoneNumbers,
+                    displayName = convData.displayName,
+                    isGroupChat = convData.isGroupChat,
+                    groupChatName = convData.groupChatName,
+                    lastMessage = convData.lastMessage,
+                    lastMessageTime = convData.lastMessageTime,
+                    unreadCount = convData.unreadCount,
+                    isPinned = convData.isPinned,
+                    isMuted = convData.isMuted,
+                    isArchived = convData.isArchived,
+                    isBlocked = convData.isBlocked,
+                    createdAt = convData.createdAt,
+                    updatedAt = convData.updatedAt,
+                    sourcePlatform = convData.sourcePlatform,
+                    encryptionEnabled = convData.encryptionEnabled
+                )
+                if (existing != null) {
+                    conversationRepository.updateConversation(conversation)
+                } else {
+                    conversationRepository.insertConversation(conversation)
+                }
+            }
+
+            backupData.messages.forEach { msgData ->
+                val message = Message(
+                    id = msgData.id,
+                    conversationId = msgData.conversationId,
+                    senderPhoneNumber = msgData.senderPhoneNumber,
+                    recipientPhoneNumber = msgData.recipientPhoneNumber,
+                    content = msgData.content,
+                    type = msgData.type,
+                    timestamp = msgData.timestamp,
+                    status = msgData.status,
+                    isEncrypted = msgData.isEncrypted,
+                    isRead = msgData.isRead,
+                    isDeleted = msgData.isDeleted,
+                    sourcePlatform = msgData.sourcePlatform
+                )
+                try {
+                    messageDao.insertMessage(message)
+                } catch (e: Exception) {
+                    Timber.w(e, "Failed to restore message ${msgData.id} (FK may be missing)")
+                }
+            }
+
             Timber.d("Backup restored: $backupId")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -301,11 +358,65 @@ class GoogleDriveBackupService @Inject constructor(
             }
         } else emptyList()
 
+        val conversations = if (dataTypes.contains("conversations")) {
+            conversationRepository.getAllConversationsList().map { c ->
+                ConversationData(
+                    id = c.id,
+                    participantPhoneNumbers = c.participantPhoneNumbers,
+                    displayName = c.displayName,
+                    isGroupChat = c.isGroupChat,
+                    groupChatName = c.groupChatName,
+                    lastMessage = c.lastMessage,
+                    lastMessageTime = c.lastMessageTime,
+                    unreadCount = c.unreadCount,
+                    isPinned = c.isPinned,
+                    isMuted = c.isMuted,
+                    isArchived = c.isArchived,
+                    isBlocked = c.isBlocked,
+                    createdAt = c.createdAt,
+                    updatedAt = c.updatedAt,
+                    sourcePlatform = c.sourcePlatform,
+                    encryptionEnabled = c.encryptionEnabled
+                )
+            }
+        } else emptyList()
+
+        val messages = if (dataTypes.contains("messages")) {
+            val allMessages = mutableListOf<MessageData>()
+            val convList = conversationRepository.getAllConversationsList()
+            for (c in convList) {
+                try {
+                    val convMessages = messageDao.getAllMessagesByConversation(c.id).first()
+                    allMessages.addAll(convMessages.map { m ->
+                        MessageData(
+                            id = m.id,
+                            conversationId = m.conversationId,
+                            senderPhoneNumber = m.senderPhoneNumber,
+                            recipientPhoneNumber = m.recipientPhoneNumber,
+                            content = m.content,
+                            type = m.type,
+                            timestamp = m.timestamp,
+                            status = m.status,
+                            isEncrypted = m.isEncrypted,
+                            isRead = m.isRead,
+                            isDeleted = m.isDeleted,
+                            sourcePlatform = m.sourcePlatform
+                        )
+                    })
+                } catch (e: Exception) {
+                    Timber.w(e, "Failed to backup messages for conversation ${c.id}")
+                }
+            }
+            allMessages
+        } else emptyList()
+
         return BackupData(
             timestamp = System.currentTimeMillis(),
             shortcuts = shortcuts,
             signatures = signatures,
-            themes = themes
+            themes = themes,
+            conversations = conversations,
+            messages = messages
         )
     }
 }

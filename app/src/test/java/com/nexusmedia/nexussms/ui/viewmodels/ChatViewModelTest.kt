@@ -13,9 +13,11 @@ import com.nexusmedia.nexussms.features.telegram.TelegramService
 import com.nexusmedia.nexussms.features.discord.DiscordService
 import com.nexusmedia.nexussms.features.messenger.MessengerService
 import com.nexusmedia.nexussms.features.messaging.SimSelector
+import com.nexusmedia.nexussms.features.messaging.ChannelRoutingManager
 import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.services.SmsSender
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -24,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.*
@@ -48,14 +51,16 @@ class ChatViewModelTest {
     private val simSelector = mockk<SimSelector>(relaxed = true)
     private val smartReplyService = mockk<SmartReplyService>(relaxed = true)
     private val templateRepository = mockk<TemplateRepository>(relaxed = true)
+    private val channelRoutingManager = mockk<ChannelRoutingManager>(relaxed = true)
+    private val smsSender = mockk<SmsSender>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
-    private val testDispatcher = UnconfinedTestDispatcher()
-    private lateinit var viewModel: ChatViewModel
 
-    @Before
-    fun setup() {
-        Dispatchers.setMain(testDispatcher)
-        viewModel = ChatViewModel(
+    private fun setupMocks() {
+        every { conversationRepository.getAllConversations() } returns flowOf(emptyList())
+    }
+
+    private fun createViewModel(): ChatViewModel {
+        return ChatViewModel(
             context,
             messageRepository,
             conversationRepository,
@@ -72,16 +77,28 @@ class ChatViewModelTest {
             messengerService,
             simSelector,
             smartReplyService,
-            templateRepository
+            templateRepository,
+            channelRoutingManager,
+            smsSender
         )
+    }
+
+    @Before
+    fun setup() {
+        setupMocks()
     }
 
     @After
     fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
     fun testLoadConversationTriggersMessageLoading() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = createViewModel()
+
         val conversation = Conversation(
             id = "conv1",
             participantPhoneNumbers = "[\"+11111\"]",
@@ -111,6 +128,10 @@ class ChatViewModelTest {
 
     @Test
     fun testSendMessageInsertsMessage() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = createViewModel()
+
         val conversationId = "conv1"
         val recipientPhone = "+1234567890"
         val messageText = "Hello there"
@@ -122,19 +143,28 @@ class ChatViewModelTest {
 
         coEvery { shortcodeExpansionService.expandMessage(messageText) } returns expandedText
         every { encryptionManager.generateMessageSignature(expandedText) } returns signedText
+        coEvery { smsSender.sendTextMessage(any(), any(), any(), any(), any(), any()) } returns Result.success("msg-id")
         coEvery { messageRepository.insertMessage(any()) } returns 1L
-        coEvery { messageRepository.updateMessage(any()) } returns Unit
 
         viewModel.sendMessage(conversationId, recipientPhone)
         testScheduler.advanceUntilIdle()
 
-        coVerify { messageRepository.insertMessage(any()) }
-        assertEquals("", viewModel.messageText.value)
-        assertFalse(viewModel.isSending.value)
+        coVerify { smsSender.sendTextMessage(
+            conversationId = conversationId,
+            recipientPhone = recipientPhone,
+            content = signedText,
+            existingMessageId = any(),
+            persistToDb = true,
+            subscriptionId = any()
+        ) }
     }
 
     @Test
-    fun testUpdateMessageTextUpdatesState() {
+    fun testUpdateMessageTextUpdatesState() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = createViewModel()
+
         viewModel.updateMessageText("New text")
 
         assertEquals("New text", viewModel.messageText.value)
@@ -142,6 +172,10 @@ class ChatViewModelTest {
 
     @Test
     fun testDeleteMessageCallsRepo() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = createViewModel()
+
         val message = Message(
             id = "m1",
             conversationId = "conv1",

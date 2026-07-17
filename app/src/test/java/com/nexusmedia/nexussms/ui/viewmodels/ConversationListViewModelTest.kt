@@ -2,18 +2,19 @@ package com.nexusmedia.nexussms.ui.viewmodels
 
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
+import com.nexusmedia.nexussms.features.security.VaultManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.Assert.*
 import org.junit.After
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
@@ -23,51 +24,61 @@ class ConversationListViewModelTest {
     private val contactAvatarRepository = mockk<com.nexusmedia.nexussms.data.repository.ContactAvatarRepository>(relaxed = true)
     private val matrixAuthService = mockk<com.nexusmedia.nexussms.features.matrix.MatrixAuthService>(relaxed = true)
     private val matrixSyncService = mockk<com.nexusmedia.nexussms.features.matrix.MatrixSyncService>(relaxed = true)
+    private val vaultManager = mockk<VaultManager>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
-    private val testDispatcher = UnconfinedTestDispatcher()
-    private lateinit var viewModel: ConversationListViewModel
 
-    @Before
-    fun setup() {
-        Dispatchers.setMain(testDispatcher)
-        val conversations = listOf(
-            Conversation(
-                id = "conv1",
-                participantPhoneNumbers = "[\"+11111\"]",
-                displayName = "Alice",
-                lastMessageTime = 2000L
-            ),
-            Conversation(
-                id = "conv2",
-                participantPhoneNumbers = "[\"+22222\"]",
-                displayName = "Bob",
-                lastMessageTime = 1000L
-            )
+    private val conversations = listOf(
+        Conversation(
+            id = "conv1",
+            participantPhoneNumbers = "[\"+11111\"]",
+            displayName = "Alice",
+            lastMessageTime = 2000L
+        ),
+        Conversation(
+            id = "conv2",
+            participantPhoneNumbers = "[\"+22222\"]",
+            displayName = "Bob",
+            lastMessageTime = 1000L
         )
-        val pinned = listOf(
-            Conversation(
-                id = "conv3",
-                participantPhoneNumbers = "[\"+33333\"]",
-                displayName = "Pinned",
-                isPinned = true,
-                lastMessageTime = 3000L
-            )
+    )
+    private val pinned = listOf(
+        Conversation(
+            id = "conv3",
+            participantPhoneNumbers = "[\"+33333\"]",
+            displayName = "Pinned",
+            isPinned = true,
+            lastMessageTime = 3000L
         )
+    )
+
+    private fun setupMocks() {
         every { conversationRepository.getAllConversations() } returns flowOf(conversations)
         every { conversationRepository.getPinnedConversations() } returns flowOf(pinned)
         every { conversationRepository.getActivePlatforms() } returns flowOf(listOf("SMS"))
+        every { conversationRepository.getBlockedConversations() } returns flowOf(emptyList())
+        every { conversationRepository.getArchivedConversations() } returns flowOf(emptyList())
         every { context.getSharedPreferences(any(), any()) } returns mockk(relaxed = true)
         every { contactAvatarRepository.getAll() } returns flowOf(emptyList())
+        every { vaultManager.isVaultUnlocked() } returns false
+        every { vaultManager.getHiddenConversations() } returns emptyList()
+    }
 
-        viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, matrixAuthService, matrixSyncService, context)
+    @Before
+    fun setup() {
+        setupMocks()
     }
 
     @After
     fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
     fun testInitialStateLoadsConversations() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, matrixAuthService, matrixSyncService, vaultManager, context)
+
         val conversationList = viewModel.conversationList.value
         val pinnedList = viewModel.pinnedConversations.value
 
@@ -77,7 +88,11 @@ class ConversationListViewModelTest {
     }
 
     @Test
-    fun testSelectConversationUpdatesSelected() {
+    fun testSelectConversationUpdatesSelected() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, matrixAuthService, matrixSyncService, vaultManager, context)
+
         val conversation = Conversation(
             id = "conv1",
             participantPhoneNumbers = "[\"+11111\"]",
@@ -92,6 +107,10 @@ class ConversationListViewModelTest {
 
     @Test
     fun testPinConversationCallsRepoWithIsPinnedTrue() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, matrixAuthService, matrixSyncService, vaultManager, context)
+
         val conversation = Conversation(
             id = "conv1",
             participantPhoneNumbers = "[\"+11111\"]",
@@ -113,6 +132,10 @@ class ConversationListViewModelTest {
 
     @Test
     fun testDeleteConversationCallsRepo() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(testDispatcher)
+        val viewModel = ConversationListViewModel(conversationRepository, smsImporter, contactAvatarRepository, matrixAuthService, matrixSyncService, vaultManager, context)
+
         coEvery { conversationRepository.deleteConversationById("conv1") } returns Unit
 
         viewModel.deleteConversation("conv1")

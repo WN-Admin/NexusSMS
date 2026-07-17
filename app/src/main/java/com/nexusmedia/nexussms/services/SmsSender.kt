@@ -1,6 +1,5 @@
 package com.nexusmedia.nexussms.services
 
-import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -8,6 +7,7 @@ import android.os.Build
 import android.telephony.SmsManager
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.repository.MessageRepository
+import com.nexusmedia.nexussms.features.messaging.SimSelector
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,14 +19,16 @@ import javax.inject.Singleton
 @Singleton
 class SmsSender @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val messageRepository: MessageRepository
+    private val messageRepository: MessageRepository,
+    private val simSelector: SimSelector
 ) {
     suspend fun sendTextMessage(
         conversationId: String,
         recipientPhone: String,
         content: String,
         existingMessageId: String? = null,
-        persistToDb: Boolean = true
+        persistToDb: Boolean = true,
+        subscriptionId: Int? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val messageId = existingMessageId ?: UUID.randomUUID().toString()
         val message = Message(
@@ -46,7 +48,7 @@ class SmsSender @Inject constructor(
         }
 
         try {
-            val smsManager = resolveSmsManager()
+            val smsManager = resolveSmsManager(subscriptionId)
             val parts = smsManager.divideMessage(content)
             val sentIntents = ArrayList<PendingIntent>()
             val deliveredIntents = ArrayList<PendingIntent>()
@@ -105,7 +107,26 @@ class SmsSender @Inject constructor(
         }
     }
 
-    private fun resolveSmsManager(): SmsManager {
+    private fun resolveSmsManager(subscriptionId: Int? = null): SmsManager {
+        if (subscriptionId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            return try {
+                val simInfo = SimSelector.SimInfo(
+                    slotIndex = 0,
+                    displayName = "",
+                    phoneNumber = null,
+                    subscriptionId = subscriptionId,
+                    carrierName = ""
+                )
+                simSelector.getSmsManagerForSim(simInfo)
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to get SMS manager for SIM subscription %d, falling back to default", subscriptionId)
+                getDefaultSmsManager()
+            }
+        }
+        return getDefaultSmsManager()
+    }
+
+    private fun getDefaultSmsManager(): SmsManager {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             context.getSystemService(SmsManager::class.java)
         } else {

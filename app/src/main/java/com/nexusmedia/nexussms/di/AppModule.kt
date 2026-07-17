@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.nexusmedia.nexussms.data.database.AppSecuritySettingsDao
 import com.nexusmedia.nexussms.data.database.BackupMetadataDao
+import com.nexusmedia.nexussms.data.database.MessageDao
 import com.nexusmedia.nexussms.data.database.NexusSMSDatabase
 import com.nexusmedia.nexussms.data.database.applyNexusMigrations
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
@@ -240,6 +241,8 @@ object AppModule {
         shortcutRepository: ShortcutRepository,
         signatureRepository: SignatureRepository,
         themeRepository: ThemeRepository,
+        conversationRepository: ConversationRepository,
+        messageDao: MessageDao,
         googleDriveClient: GoogleDriveClient,
         encryptionManager: EncryptionManager
     ): GoogleDriveBackupService = GoogleDriveBackupService(
@@ -248,6 +251,8 @@ object AppModule {
         shortcutRepository,
         signatureRepository,
         themeRepository,
+        conversationRepository,
+        messageDao,
         googleDriveClient,
         encryptionManager
     )

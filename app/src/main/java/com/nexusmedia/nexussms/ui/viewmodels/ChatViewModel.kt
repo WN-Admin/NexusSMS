@@ -1,16 +1,9 @@
 package com.nexusmedia.nexussms.ui.viewmodels
 
-import android.app.Activity
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.os.Build
-import android.telephony.SmsManager
-import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Conversation
@@ -22,7 +15,6 @@ import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
 import com.nexusmedia.nexussms.data.repository.ThemeRepository
 import com.nexusmedia.nexussms.features.rcs.RcsService
 import com.nexusmedia.nexussms.ui.theme.BubbleTheme
-import com.nexusmedia.nexussms.ui.theme.TonalPalette
 import androidx.compose.ui.graphics.Color
 import com.nexusmedia.nexussms.features.shortcodes.ShortcodeExpansionService
 import com.nexusmedia.nexussms.features.matrix.MatrixMessageService
@@ -36,6 +28,7 @@ import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
 import com.nexusmedia.nexussms.data.models.Template
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.services.SmsSender
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -47,7 +40,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.Date
 import javax.inject.Inject
 
 @HiltViewModel
@@ -69,7 +61,8 @@ class ChatViewModel @Inject constructor(
     private val simSelector: SimSelector,
     private val smartReplyService: SmartReplyService,
     private val templateRepository: TemplateRepository,
-    private val channelRoutingManager: ChannelRoutingManager
+    private val channelRoutingManager: ChannelRoutingManager,
+    private val smsSender: SmsSender
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -230,7 +223,14 @@ class ChatViewModel @Inject constructor(
                                 if (messengerService.sendMessage(recipientId, msg)) Result.success(Unit) else Result.failure(Exception("Messenger send failed"))
                             }
                             "SMS" -> {
-                                sendSmsDirectly(conversationId, recipientPhone, msg, attachments, mediaUrlsStr)
+                                val simSubId = _selectedSim.value?.subscriptionId
+                                smsSender.sendTextMessage(
+                                    conversationId = conversationId,
+                                    recipientPhone = recipientPhone,
+                                    content = msg,
+                                    persistToDb = true,
+                                    subscriptionId = simSubId
+                                )
                                 Result.success(Unit)
                             }
                             else -> Result.failure(Exception("Unknown platform: $sendPlatform"))
@@ -243,92 +243,15 @@ class ChatViewModel @Inject constructor(
                     when (_selectedMessageType.value) {
                     "SMS" -> {
                         val messageId = java.util.UUID.randomUUID().toString()
-                        val message = Message(
-                            id = messageId,
+                        val simSubId = _selectedSim.value?.subscriptionId
+                        smsSender.sendTextMessage(
                             conversationId = conversationId,
-                            senderPhoneNumber = "self",
-                            recipientPhoneNumber = recipientPhone,
+                            recipientPhone = recipientPhone,
                             content = messageContent,
-                            timestamp = System.currentTimeMillis(),
-                            type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
-                            status = "SENDING",
-                            isEncrypted = false,
-                            mediaUrls = mediaUrlsStr
+                            existingMessageId = messageId,
+                            persistToDb = true,
+                            subscriptionId = simSubId
                         )
-                        messageRepository.insertMessage(message)
-
-                        try {
-                            val smsManager: SmsManager = _selectedSim.value?.let { sim ->
-                                simSelector.getSmsManagerForSim(sim)
-                            } ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                context.getSystemService(SmsManager::class.java)
-                            } else {
-                                @Suppress("DEPRECATION")
-                                SmsManager.getDefault()
-                            }
-
-                            val parts = smsManager.divideMessage(messageContent)
-                            val sentIntents = ArrayList<PendingIntent>()
-                            val deliveredIntents = ArrayList<PendingIntent>()
-
-                            for (i in parts.indices) {
-                                val sentIntent = PendingIntent.getBroadcast(
-                                    context,
-                                    messageId.hashCode() + i,
-                                    Intent("com.nexusmedia.nexussms.SMS_SENT").setPackage(context.packageName),
-                                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                                )
-                                sentIntents.add(sentIntent)
-
-                                val deliveredIntent = PendingIntent.getBroadcast(
-                                    context,
-                                    messageId.hashCode() + i + 10000,
-                                    Intent("com.nexusmedia.nexussms.SMS_DELIVERED").setPackage(context.packageName),
-                                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                                )
-                                deliveredIntents.add(deliveredIntent)
-                            }
-
-                            val sentReceiver = object : BroadcastReceiver() {
-                                override fun onReceive(ctx: Context?, intent: Intent?) {
-                                    val resultCode = resultCode
-                                    viewModelScope.launch {
-                                        val updatedMessage = message.copy(
-                                            status = if (resultCode == Activity.RESULT_OK) "SENT" else "FAILED"
-                                        )
-                                        messageRepository.updateMessage(updatedMessage)
-                                    }
-                                    try { context.unregisterReceiver(this) } catch (_: Exception) {}
-                                }
-                            }
-                            context.registerReceiver(
-                                sentReceiver,
-                                IntentFilter("com.nexusmedia.nexussms.SMS_SENT"),
-                                Context.RECEIVER_NOT_EXPORTED
-                            )
-
-                            val deliveredReceiver = object : BroadcastReceiver() {
-                                override fun onReceive(ctx: Context?, intent: Intent?) {
-                                    try { context.unregisterReceiver(this) } catch (_: Exception) {}
-                                }
-                            }
-                            context.registerReceiver(
-                                deliveredReceiver,
-                                IntentFilter("com.nexusmedia.nexussms.SMS_DELIVERED"),
-                                Context.RECEIVER_NOT_EXPORTED
-                            )
-
-                            smsManager.sendMultipartTextMessage(
-                                recipientPhone,
-                                null,
-                                parts,
-                                sentIntents,
-                                deliveredIntents
-                            )
-                        } catch (e: Exception) {
-                            messageRepository.updateMessage(message.copy(status = "FAILED"))
-                            Timber.e(e, "SMS send failed")
-                        }
                     }
                     "RCS" -> {
                         if (rcsService.isRcsAvailable()) {
@@ -340,32 +263,14 @@ class ChatViewModel @Inject constructor(
                             )
                         } else {
                             Timber.w("RCS requested but not available, falling back to SMS")
-                            val fallbackMessage = Message(
+                            val simSubId = _selectedSim.value?.subscriptionId
+                            smsSender.sendTextMessage(
                                 conversationId = conversationId,
-                                senderPhoneNumber = "self",
-                                recipientPhoneNumber = recipientPhone,
+                                recipientPhone = recipientPhone,
                                 content = messageContent,
-                                timestamp = System.currentTimeMillis(),
-                                type = "TEXT",
-                                status = "SENT",
-                                isEncrypted = false,
-                                mediaUrls = mediaUrlsStr
+                                persistToDb = true,
+                                subscriptionId = simSubId
                             )
-                            messageRepository.insertMessage(fallbackMessage)
-                            try {
-                                val smsManager: SmsManager = _selectedSim.value?.let { sim ->
-                                    simSelector.getSmsManagerForSim(sim)
-                                } ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    context.getSystemService(SmsManager::class.java)
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    SmsManager.getDefault()
-                                }
-                                val parts = smsManager.divideMessage(messageContent)
-                                smsManager.sendMultipartTextMessage(recipientPhone, null, parts, null, null)
-                            } catch (e: Exception) {
-                                Timber.e(e, "RCS fallback SMS send failed")
-                            }
                         }
                     }
                     }
@@ -640,100 +545,6 @@ class ChatViewModel @Inject constructor(
             templateRepository.incrementUsage(template.id)
         }
         _showTemplatePicker.value = false
-    }
-
-    private fun sendSmsDirectly(
-        conversationId: String,
-        recipientPhone: String,
-        content: String,
-        attachments: List<String>,
-        mediaUrlsStr: String
-    ) {
-        val messageId = java.util.UUID.randomUUID().toString()
-        val msg = Message(
-            id = messageId,
-            conversationId = conversationId,
-            senderPhoneNumber = "self",
-            recipientPhoneNumber = recipientPhone,
-            content = content,
-            timestamp = System.currentTimeMillis(),
-            type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
-            status = "SENDING",
-            isEncrypted = false,
-            mediaUrls = mediaUrlsStr
-        )
-
-        viewModelScope.launch {
-            messageRepository.insertMessage(msg)
-        }
-
-        val smsManager: SmsManager = _selectedSim.value?.let { sim ->
-            simSelector.getSmsManagerForSim(sim)
-        } ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(SmsManager::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            SmsManager.getDefault()
-        }
-
-        val parts = smsManager.divideMessage(content)
-        val sentIntents = ArrayList<PendingIntent>()
-        val deliveredIntents = ArrayList<PendingIntent>()
-
-        for (i in parts.indices) {
-            val sentIntent = PendingIntent.getBroadcast(
-                context,
-                messageId.hashCode() + i,
-                Intent("com.nexusmedia.nexussms.SMS_SENT").setPackage(context.packageName),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            sentIntents.add(sentIntent)
-
-            val deliveredIntent = PendingIntent.getBroadcast(
-                context,
-                messageId.hashCode() + i + 10000,
-                Intent("com.nexusmedia.nexussms.SMS_DELIVERED").setPackage(context.packageName),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            deliveredIntents.add(deliveredIntent)
-        }
-
-        val sentReceiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                val resultCode = resultCode
-                viewModelScope.launch {
-                    val updatedMessage = msg.copy(
-                        status = if (resultCode == Activity.RESULT_OK) "SENT" else "FAILED"
-                    )
-                    messageRepository.updateMessage(updatedMessage)
-                }
-                try { context.unregisterReceiver(this) } catch (_: Exception) {}
-            }
-        }
-        context.registerReceiver(
-            sentReceiver,
-            IntentFilter("com.nexusmedia.nexussms.SMS_SENT"),
-            Context.RECEIVER_NOT_EXPORTED
-        )
-
-        val deliveredReceiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                try { context.unregisterReceiver(this) } catch (_: Exception) {}
-            }
-        }
-        context.registerReceiver(
-            deliveredReceiver,
-            IntentFilter("com.nexusmedia.nexussms.SMS_DELIVERED"),
-            Context.RECEIVER_NOT_EXPORTED
-        )
-
-        smsManager.sendMultipartTextMessage(
-            recipientPhone,
-            null,
-            parts,
-            sentIntents,
-            deliveredIntents
-        )
     }
 
     companion object {

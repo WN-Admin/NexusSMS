@@ -110,7 +110,11 @@ class KeyExchangeManager @Inject constructor(
         return bundle
     }
 
-    fun processKeyExchange(contactId: String, message: KeyExchangeMessage): KeyBundle? {
+    fun processKeyExchange(
+        contactId: String,
+        message: KeyExchangeMessage,
+        onKeyChanged: ((contactId: String, deviceId: String) -> Unit)? = null
+    ): KeyBundle? {
         val existingKeys = getReceivedKeys(contactId).toMutableList()
         if (existingKeys.any { it.deviceId == message.deviceId && it.keyVersion == message.keyVersion }) {
             return null
@@ -123,6 +127,7 @@ class KeyExchangeManager @Inject constructor(
                 "Safety number should be re-verified.",
                 contactId, message.deviceId
             )
+            onKeyChanged?.invoke(contactId, message.deviceId)
         }
 
         existingKeys.add(KeyBundle(
