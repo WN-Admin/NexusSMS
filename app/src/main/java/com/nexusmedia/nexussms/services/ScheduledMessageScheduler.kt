@@ -26,7 +26,7 @@ class ScheduledMessageScheduler @Inject constructor(
     }
 
     fun scheduleExactAlarm(
-        messageId: Long,
+        scheduledMsgId: String,
         conversationId: String,
         recipientPhone: String,
         content: String,
@@ -35,7 +35,7 @@ class ScheduledMessageScheduler @Inject constructor(
         repeatUntil: Long = -1L
     ) {
         ScheduledMessageAlarmReceiver.scheduleExactAlarm(
-            context, messageId, conversationId, recipientPhone,
+            context, scheduledMsgId, conversationId, recipientPhone,
             content, triggerAtMillis, repeatType, repeatUntil
         )
     }

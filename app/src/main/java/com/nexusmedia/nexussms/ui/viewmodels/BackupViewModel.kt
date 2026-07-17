@@ -62,12 +62,12 @@ class BackupViewModel @Inject constructor(
         }
     }
 
-    fun restoreBackup(backup: BackupMetadata) {
+    fun restoreBackup(backup: BackupMetadata, passphrase: String? = null) {
         viewModelScope.launch {
             _isBackingUp.value = true
             _backupError.value = null
             try {
-                val result = googleDriveBackupService.restoreBackup(backup.id)
+                val result = googleDriveBackupService.restoreBackup(backup.id, passphrase)
                 result.onFailure { e ->
                     _backupError.value = e.message ?: "Restore failed"
                 }
@@ -77,6 +77,13 @@ class BackupViewModel @Inject constructor(
                 _isBackingUp.value = false
             }
         }
+    }
+
+    fun hasBackupPassphrase(): Boolean =
+        try { googleDriveBackupService.hasBackupPassphrase() } catch (_: Exception) { false }
+
+    fun setBackupPassphrase(passphrase: String) {
+        googleDriveBackupService.setBackupPassphrase(passphrase)
     }
 
     fun scheduleAutoBackup(frequency: String = "DAILY") {

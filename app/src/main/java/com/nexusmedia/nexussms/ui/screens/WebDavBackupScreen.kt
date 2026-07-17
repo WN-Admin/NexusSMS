@@ -84,6 +84,16 @@ fun WebDavBackupScreen(
     var backupMessage by remember { mutableStateOf<String?>(null) }
     var autoBackupEnabled by remember { mutableStateOf(false) }
     var backupFrequency by remember { mutableStateOf(BackupFrequency.DAILY) }
+    var backupPassphrase by remember { mutableStateOf("") }
+    var showPassphrase by remember { mutableStateOf(false) }
+    var hasPassphrase by remember {
+        mutableStateOf(
+            try { webDavBackupService.hasBackupPassphrase() } catch (_: Exception) { false }
+        )
+    }
+    var showRestorePassphraseDialog by remember { mutableStateOf(false) }
+    var pendingRestoreId by remember { mutableStateOf<String?>(null) }
+    var restorePassphrase by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -203,6 +213,34 @@ fun WebDavBackupScreen(
                             enabled = !isConnected,
                             singleLine = true
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = backupPassphrase,
+                            onValueChange = { backupPassphrase = it },
+                            label = { Text("Encryption Passphrase") },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = if (showPassphrase) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showPassphrase = !showPassphrase }) {
+                                    Icon(
+                                        if (showPassphrase) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = "Toggle passphrase visibility"
+                                    )
+                                }
+                            },
+                            placeholder = { Text("Required for encrypted backups") },
+                            enabled = !isConnected,
+                            singleLine = true
+                        )
+                        if (!isConnected && backupPassphrase.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "This passphrase is used to encrypt/decrypt backups. You'll need it to restore on a new device.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
 
                         if (isConnected) {
@@ -232,6 +270,10 @@ fun WebDavBackupScreen(
                                         isConnecting = false
                                         if (success) {
                                             webDavBackupService.persistCredentials(serverUrl, username, password)
+                                            if (backupPassphrase.isNotBlank()) {
+                                                webDavBackupService.setBackupPassphrase(backupPassphrase)
+                                                hasPassphrase = true
+                                            }
                                             backups = webDavBackupService.listBackups()
                                         }
                                     }
@@ -268,6 +310,20 @@ fun WebDavBackupScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            if (hasPassphrase) {
+                                Text(
+                                    "Encryption: passphrase set",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Text(
+                                    "Encryption: no passphrase set (set one in connection settings for cross-device restore)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                             Spacer(modifier = Modifier.height(12.dp))
 
                             if (backupMessage != null) {
@@ -458,8 +514,14 @@ fun WebDavBackupScreen(
                                 Row {
                                     IconButton(
                                         onClick = {
-                                            scope.launch {
-                                                webDavBackupService.restoreBackup(backup.id)
+                                            pendingRestoreId = backup.id
+                                            if (hasPassphrase) {
+                                                restorePassphrase = ""
+                                                showRestorePassphraseDialog = true
+                                            } else {
+                                                scope.launch {
+                                                    webDavBackupService.restoreBackup(backup.id)
+                                                }
                                             }
                                         }
                                     ) {
@@ -487,6 +549,57 @@ fun WebDavBackupScreen(
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+
+        if (showRestorePassphraseDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = {
+                    showRestorePassphraseDialog = false
+                    pendingRestoreId = null
+                },
+                title = { Text("Enter Backup Passphrase") },
+                text = {
+                    Column {
+                        Text("This backup is encrypted. Enter the passphrase used when creating it.")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = restorePassphrase,
+                            onValueChange = { restorePassphrase = it },
+                            label = { Text("Passphrase") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val id = pendingRestoreId
+                            showRestorePassphraseDialog = false
+                            pendingRestoreId = null
+                            if (id != null) {
+                                scope.launch {
+                                    webDavBackupService.restoreBackup(id, restorePassphrase)
+                                }
+                            }
+                        },
+                        enabled = restorePassphrase.isNotBlank()
+                    ) {
+                        Text("Restore")
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            showRestorePassphraseDialog = false
+                            pendingRestoreId = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

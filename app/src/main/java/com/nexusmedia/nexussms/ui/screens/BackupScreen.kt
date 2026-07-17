@@ -36,6 +36,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -43,11 +45,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,6 +71,10 @@ fun BackupScreen(
     val backups by viewModel.backups.collectAsState()
     val isBackingUp by viewModel.isBackingUp.collectAsState()
     val backupError by viewModel.backupError.collectAsState()
+    val scope = rememberCoroutineScope()
+    var showRestorePassphraseDialog by remember { mutableStateOf(false) }
+    var pendingRestoreBackup by remember { mutableStateOf<BackupMetadata?>(null) }
+    var restorePassphrase by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -127,12 +135,67 @@ fun BackupScreen(
                 items(backups, key = { it.id }) { backup ->
                     BackupHistoryItem(
                         backup = backup,
-                        onRestore = { viewModel.restoreBackup(backup) }
+                        onRestore = {
+                            if (viewModel.hasBackupPassphrase()) {
+                                pendingRestoreBackup = backup
+                                restorePassphrase = ""
+                                showRestorePassphraseDialog = true
+                            } else {
+                                viewModel.restoreBackup(backup)
+                            }
+                        }
                     )
                 }
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+
+        if (showRestorePassphraseDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showRestorePassphraseDialog = false
+                    pendingRestoreBackup = null
+                },
+                title = { Text("Enter Backup Passphrase") },
+                text = {
+                    Column {
+                        Text("This backup is encrypted. Enter the passphrase used when creating it.")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = restorePassphrase,
+                            onValueChange = { restorePassphrase = it },
+                            label = { Text("Passphrase") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val backup = pendingRestoreBackup
+                            showRestorePassphraseDialog = false
+                            pendingRestoreBackup = null
+                            if (backup != null) {
+                                viewModel.restoreBackup(backup, restorePassphrase)
+                            }
+                        },
+                        enabled = restorePassphrase.isNotBlank()
+                    ) {
+                        Text("Restore")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showRestorePassphraseDialog = false
+                        pendingRestoreBackup = null
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

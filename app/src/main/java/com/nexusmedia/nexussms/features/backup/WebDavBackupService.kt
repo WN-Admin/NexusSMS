@@ -72,14 +72,15 @@ class WebDavBackupService @Inject constructor(
         )
     }
 
-    private fun getBackupPassphrase(): String {
-        val existing = encryptedPrefs.getString("backup_passphrase", null)
-        if (existing != null) return existing
-        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%"
-        val generated = (1..32).map { chars.random() }.joinToString("")
-        encryptedPrefs.edit().putString("backup_passphrase", generated).apply()
-        return generated
+    private fun getBackupPassphrase(): String? =
+        encryptedPrefs.getString("backup_passphrase", null)
+
+    fun setBackupPassphrase(passphrase: String) {
+        encryptedPrefs.edit().putString("backup_passphrase", passphrase).apply()
     }
+
+    fun hasBackupPassphrase(): Boolean =
+        encryptedPrefs.getString("backup_passphrase", null).isNullOrBlank().not()
 
     fun persistCredentials(url: String, username: String, password: String) {
         credentialsPrefs.edit()
@@ -104,7 +105,7 @@ class WebDavBackupService @Inject constructor(
 
     fun clearStoredCredentials() {
         credentialsPrefs.edit().clear().apply()
-        encryptedPrefs.edit().clear().apply()
+        encryptedPrefs.edit().remove(KEY_PASSWORD).apply()
     }
 
     suspend fun createBackup(
@@ -141,7 +142,11 @@ class WebDavBackupService @Inject constructor(
             val finalAlgorithm: String
 
             if (encrypt) {
-                payload = "PBKDF2:" + encryptionManager.encryptWithPassphrase(payload, getBackupPassphrase())
+                val passphrase = getBackupPassphrase()
+                if (passphrase.isNullOrBlank()) {
+                    return@withContext Result.failure(Exception("Backup passphrase not set. Please set an encryption passphrase in backup settings."))
+                }
+                payload = "PBKDF2:" + encryptionManager.encryptWithPassphrase(payload, passphrase)
                 finalEncrypted = true
                 finalAlgorithm = "AES-256-GCM-PBKDF2"
             } else {
@@ -179,7 +184,7 @@ class WebDavBackupService @Inject constructor(
         }
     }
 
-    suspend fun restoreBackup(backupId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun restoreBackup(backupId: String, passphrase: String? = null): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!webDavClient.isAuthenticated()) {
                 return@withContext Result.failure(Exception("WebDAV not authenticated"))
@@ -197,7 +202,9 @@ class WebDavBackupService @Inject constructor(
 
             if (payload.startsWith("PBKDF2:")) {
                 val encryptedData = payload.removePrefix("PBKDF2:")
-                payload = encryptionManager.decryptWithPassphrase(encryptedData, getBackupPassphrase())
+                val decryptPassphrase = passphrase ?: getBackupPassphrase()
+                    ?: return@withContext Result.failure(Exception("Backup is encrypted. Please provide the encryption passphrase."))
+                payload = encryptionManager.decryptWithPassphrase(encryptedData, decryptPassphrase)
             } else if (payload.startsWith(ENCRYPTION_PREFIX)) {
                 val encryptedData = payload.removePrefix(ENCRYPTION_PREFIX)
                 payload = encryptionManager.decryptAES256(encryptedData)
