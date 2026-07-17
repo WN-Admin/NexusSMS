@@ -72,6 +72,15 @@ class WebDavBackupService @Inject constructor(
         )
     }
 
+    private fun getBackupPassphrase(): String {
+        val existing = encryptedPrefs.getString("backup_passphrase", null)
+        if (existing != null) return existing
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%"
+        val generated = (1..32).map { chars.random() }.joinToString("")
+        encryptedPrefs.edit().putString("backup_passphrase", generated).apply()
+        return generated
+    }
+
     fun persistCredentials(url: String, username: String, password: String) {
         credentialsPrefs.edit()
             .putString(KEY_SERVER_URL, url)
@@ -132,9 +141,9 @@ class WebDavBackupService @Inject constructor(
             val finalAlgorithm: String
 
             if (encrypt) {
-                payload = ENCRYPTION_PREFIX + encryptionManager.encryptAES256(payload)
+                payload = "PBKDF2:" + encryptionManager.encryptWithPassphrase(payload, getBackupPassphrase())
                 finalEncrypted = true
-                finalAlgorithm = "AES-256-CBC"
+                finalAlgorithm = "AES-256-GCM-PBKDF2"
             } else {
                 finalEncrypted = false
                 finalAlgorithm = ""
@@ -186,7 +195,10 @@ class WebDavBackupService @Inject constructor(
             var payload = webDavClient.downloadFile(backupFile.path)
                 ?: return@withContext Result.failure(Exception("Failed to download backup file"))
 
-            if (payload.startsWith(ENCRYPTION_PREFIX)) {
+            if (payload.startsWith("PBKDF2:")) {
+                val encryptedData = payload.removePrefix("PBKDF2:")
+                payload = encryptionManager.decryptWithPassphrase(encryptedData, getBackupPassphrase())
+            } else if (payload.startsWith(ENCRYPTION_PREFIX)) {
                 val encryptedData = payload.removePrefix(ENCRYPTION_PREFIX)
                 payload = encryptionManager.decryptAES256(encryptedData)
             }

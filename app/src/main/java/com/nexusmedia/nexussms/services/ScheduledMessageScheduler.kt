@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.nexusmedia.nexussms.receivers.ScheduledMessageAlarmReceiver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -21,6 +22,21 @@ class ScheduledMessageScheduler @Inject constructor(
             WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             request
+        )
+    }
+
+    fun scheduleExactAlarm(
+        messageId: Long,
+        conversationId: String,
+        recipientPhone: String,
+        content: String,
+        triggerAtMillis: Long,
+        repeatType: String? = null,
+        repeatUntil: Long = -1L
+    ) {
+        ScheduledMessageAlarmReceiver.scheduleExactAlarm(
+            context, messageId, conversationId, recipientPhone,
+            content, triggerAtMillis, repeatType, repeatUntil
         )
     }
 

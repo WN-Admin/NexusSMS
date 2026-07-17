@@ -114,6 +114,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name="com.nexusmedia.nexussms.receivers.ScheduledMessageAlarmReceiver"
+            android:exported="false" />
+
         <!-- Disable WorkManager's default initializer so the Hilt-aware Configuration.Provider on
              NexusSMSApplication is used instead. -->
         <provider

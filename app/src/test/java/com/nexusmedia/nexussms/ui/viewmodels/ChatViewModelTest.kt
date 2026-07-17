@@ -18,6 +18,9 @@ import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
 import com.nexusmedia.nexussms.services.SmsSender
+import com.nexusmedia.nexussms.data.repository.ReactionRepository
+import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
+import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -53,6 +56,9 @@ class ChatViewModelTest {
     private val templateRepository = mockk<TemplateRepository>(relaxed = true)
     private val channelRoutingManager = mockk<ChannelRoutingManager>(relaxed = true)
     private val smsSender = mockk<SmsSender>(relaxed = true)
+    private val reactionRepository = mockk<ReactionRepository>(relaxed = true)
+    private val messagingPreferences = mockk<MessagingPreferences>(relaxed = true)
+    private val scheduledMessageScheduler = mockk<ScheduledMessageScheduler>(relaxed = true)
     private val context = mockk<android.content.Context>(relaxed = true)
 
     private fun setupMocks() {
@@ -79,7 +85,10 @@ class ChatViewModelTest {
             smartReplyService,
             templateRepository,
             channelRoutingManager,
-            smsSender
+            smsSender,
+            reactionRepository,
+            messagingPreferences,
+            scheduledMessageScheduler
         )
     }
 

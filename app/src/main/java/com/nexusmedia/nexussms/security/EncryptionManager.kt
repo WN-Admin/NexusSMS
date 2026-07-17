@@ -10,8 +10,12 @@ import timber.log.Timber
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 import java.security.KeyStore
+import java.security.SecureRandom
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -183,5 +187,36 @@ class EncryptionManager @Inject constructor(
         val spec = GCMParameterSpec(128, iv)
         cipher.init(Cipher.DECRYPT_MODE, sharedSecretKey, spec)
         return String(cipher.doFinal(encryptedBytes), Charsets.UTF_8)
+    }
+
+    fun encryptWithPassphrase(plaintext: String, passphrase: String): String {
+        val salt = ByteArray(16)
+        SecureRandom().nextBytes(salt)
+        val key = deriveKeyFromPassphrase(passphrase, salt)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        val iv = cipher.iv
+        val encryptedBytes = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        val combined = salt + iv + encryptedBytes
+        return Base64.encodeToString(combined, Base64.NO_WRAP)
+    }
+
+    fun decryptWithPassphrase(encryptedPayload: String, passphrase: String): String {
+        val combined = Base64.decode(encryptedPayload, Base64.NO_WRAP)
+        val salt = combined.sliceArray(0 until 16)
+        val iv = combined.sliceArray(16 until 28)
+        val encryptedBytes = combined.sliceArray(28 until combined.size)
+        val key = deriveKeyFromPassphrase(passphrase, salt)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = GCMParameterSpec(128, iv)
+        cipher.init(Cipher.DECRYPT_MODE, key, spec)
+        return String(cipher.doFinal(encryptedBytes), Charsets.UTF_8)
+    }
+
+    private fun deriveKeyFromPassphrase(passphrase: String, salt: ByteArray): SecretKey {
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val spec = PBEKeySpec(passphrase.toCharArray(), salt, 100_000, 256)
+        val tmp = factory.generateSecret(spec)
+        return SecretKeySpec(tmp.encoded, "AES")
     }
 }

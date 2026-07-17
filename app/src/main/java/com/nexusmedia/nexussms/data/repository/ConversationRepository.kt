@@ -58,12 +58,8 @@ class ConversationRepository @Inject constructor(
         }
     }
 
-    suspend fun clearUnreadCount(conversationId: String) {
-        val conversation = conversationDao.getConversationById(conversationId)
-        if (conversation != null) {
-            conversationDao.updateConversation(conversation.copy(unreadCount = 0))
-        }
-    }
+    suspend fun clearUnreadCount(conversationId: String) =
+        markConversationAsRead(conversationId)
 
     suspend fun deleteConversationById(conversationId: String) {
         val conversation = conversationDao.getConversationById(conversationId)

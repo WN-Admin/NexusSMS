@@ -27,8 +27,12 @@ import com.nexusmedia.nexussms.features.messaging.ChannelRoutingManager
 import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
 import com.nexusmedia.nexussms.data.models.Template
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
+import com.nexusmedia.nexussms.data.repository.ReactionRepository
+import com.nexusmedia.nexussms.data.models.Reaction
+import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
 import com.nexusmedia.nexussms.security.EncryptionManager
 import com.nexusmedia.nexussms.services.SmsSender
+import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -62,7 +66,10 @@ class ChatViewModel @Inject constructor(
     private val smartReplyService: SmartReplyService,
     private val templateRepository: TemplateRepository,
     private val channelRoutingManager: ChannelRoutingManager,
-    private val smsSender: SmsSender
+    private val smsSender: SmsSender,
+    private val reactionRepository: ReactionRepository,
+    private val messagingPreferences: MessagingPreferences,
+    private val scheduledMessageScheduler: ScheduledMessageScheduler
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -103,10 +110,22 @@ class ChatViewModel @Inject constructor(
 
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
+    private var messagePageOffset = 0
+    private val messagePageSize = 50
+    private var allMessagesLoaded = false
+
+    val hasMoreMessages: StateFlow<Boolean>
+        get() = _hasMoreMessages
+    private val _hasMoreMessages = MutableStateFlow(true)
 
     fun loadConversation(conversationId: String) {
         conversationJob?.cancel()
         messagesJob?.cancel()
+
+        _sendDelaySeconds.value = messagingPreferences.sendDelaySeconds
+        messagePageOffset = 0
+        allMessagesLoaded = false
+        _hasMoreMessages.value = true
 
         conversationJob = conversationRepository.getAllConversations()
             .onEach { list ->
@@ -136,8 +155,15 @@ class ChatViewModel @Inject constructor(
 
         messagesJob = messageRepository.getConversationMessages(conversationId)
             .onEach { msgs ->
-                _messages.value = msgs
-                generateSmartReplies(msgs)
+                val initial = if (messagePageOffset == 0) {
+                    msgs.take(messagePageSize)
+                } else {
+                    _messages.value + msgs.drop(messagePageOffset)
+                }
+                _messages.value = initial
+                _hasMoreMessages.value = initial.size < msgs.size
+                messagePageOffset = initial.size
+                generateSmartReplies(initial)
             }
             .launchIn(viewModelScope)
 
@@ -151,6 +177,19 @@ class ChatViewModel @Inject constructor(
             viewModelScope.launch {
                 try { matrixSyncService.syncForRoom(_currentConversation.value?.sourceAccountId ?: "") } catch (e: Exception) { Timber.w(e, "Matrix sync failed") }
             }
+        }
+    }
+
+    fun loadMoreMessages() {
+        if (allMessagesLoaded) return
+        viewModelScope.launch {
+            val convId = _currentConversation.value?.id ?: return@launch
+            val all = messageRepository.getConversationMessages(convId).first()
+            val nextEnd = (messagePageOffset + messagePageSize).coerceAtMost(all.size)
+            if (nextEnd >= all.size) allMessagesLoaded = true
+            _messages.value = all.take(nextEnd)
+            _hasMoreMessages.value = !allMessagesLoaded
+            messagePageOffset = nextEnd
         }
     }
 
@@ -177,6 +216,11 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _isSending.value = true
             try {
+                val delay = _sendDelaySeconds.value
+                if (delay > 0) {
+                    kotlinx.coroutines.delay(delay * 1000L)
+                }
+
                 var messageContent = _messageText.value
                 messageContent = shortcodeExpansionService.expandMessage(messageContent)
                 messageContent = encryptionManager.generateMessageSignature(messageContent)
@@ -312,12 +356,19 @@ class ChatViewModel @Inject constructor(
 
     fun addReaction(messageId: String, reaction: String) {
         viewModelScope.launch {
-            val message = messageRepository.getMessageById(messageId)
-            if (message != null) {
-                val updatedMessage = message.copy(
-                    reactions = reaction
+            val senderPhone = messagingPreferences.mobileNumber.ifEmpty { "local" }
+            val existing = reactionRepository.getReactionsByMessage(messageId).first()
+                .find { it.emoji == reaction && it.senderPhoneNumber == senderPhone }
+            if (existing != null) {
+                reactionRepository.deleteReaction(existing)
+            } else {
+                reactionRepository.insertReaction(
+                    Reaction(
+                        messageId = messageId,
+                        emoji = reaction,
+                        senderPhoneNumber = senderPhone
+                    )
                 )
-                messageRepository.updateMessage(updatedMessage)
             }
         }
     }
@@ -479,7 +530,17 @@ class ChatViewModel @Inject constructor(
                 scheduledTime = scheduleAt,
                 status = "PENDING"
             )
-            scheduledMessageRepository.insertScheduledMessage(scheduledMessage)
+            val rowId = scheduledMessageRepository.insertScheduledMessage(scheduledMessage)
+            val delayMs = scheduleAt - System.currentTimeMillis()
+            if (delayMs in 1 until 15 * 60 * 1000L) {
+                scheduledMessageScheduler.scheduleExactAlarm(
+                    messageId = scheduleAt,
+                    conversationId = conversationId,
+                    recipientPhone = recipientPhone,
+                    content = content,
+                    triggerAtMillis = scheduleAt
+                )
+            }
             _messageText.value = ""
             _shortcutSuggestions.value = emptyList()
         }

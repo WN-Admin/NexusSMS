@@ -2,6 +2,8 @@ package com.nexusmedia.nexussms.features.backup
 
 import android.content.Context
 import android.util.Base64
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -195,43 +197,110 @@ class WebDavClient(
 
     private fun parseMultiStatusResponse(xml: String, basePath: String): List<WebDavFile> {
         val files = mutableListOf<WebDavFile>()
+        val basePathClean = basePath.trimStart('/').trimEnd('/')
 
+        try {
+            val factory = XmlPullParserFactory.newInstance()
+            factory.isNamespaceAware = true
+            val parser = factory.newPullParser()
+            parser.setInput(xml.reader())
+
+            var inResponse = false
+            var href: String? = null
+            var lastModified: Long = 0L
+            var contentLength: Long = 0L
+            var contentType: String? = null
+            var currentTag: String? = null
+
+            var eventType = parser.eventType
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    XmlPullParser.START_TAG -> {
+                        val tag = parser.name
+                        when {
+                            tag == "response" || tag.endsWith(":response") -> {
+                                inResponse = true
+                                href = null
+                                lastModified = 0L
+                                contentLength = 0L
+                                contentType = null
+                            }
+                            inResponse -> {
+                                currentTag = tag
+                            }
+                        }
+                    }
+                    XmlPullParser.TEXT -> {
+                        if (inResponse && currentTag != null) {
+                            val text = parser.text?.trim() ?: ""
+                            when {
+                                currentTag!!.endsWith("href") && text.isNotEmpty() -> href = text
+                                currentTag!!.endsWith("getlastmodified") && text.isNotEmpty() -> lastModified = parseIsoDate(text)
+                                currentTag!!.endsWith("getcontentlength") && text.isNotEmpty() -> contentLength = text.toLongOrNull() ?: 0L
+                                currentTag!!.endsWith("getcontenttype") && text.isNotEmpty() -> contentType = text
+                            }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        val tag = parser.name
+                        if (tag == "response" || tag.endsWith(":response")) {
+                            inResponse = false
+                            if (href != null) {
+                                val cleanPath = href!!.trimStart('/').trimEnd('/')
+                                if (cleanPath != basePathClean && cleanPath.isNotEmpty()) {
+                                    val name = href!!.split("/").filter { it.isNotEmpty() }.lastOrNull()
+                                    if (name != null) {
+                                        files.add(
+                                            WebDavFile(
+                                                path = cleanPath,
+                                                name = name,
+                                                size = contentLength,
+                                                lastModified = lastModified,
+                                                contentType = contentType
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        currentTag = null
+                    }
+                }
+                eventType = parser.next()
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "XmlPullParser failed, falling back to regex")
+            return parseMultiStatusResponseRegex(xml, basePath)
+        }
+
+        return files
+    }
+
+    private fun parseMultiStatusResponseRegex(xml: String, basePath: String): List<WebDavFile> {
+        val files = mutableListOf<WebDavFile>()
         val responseBlocks = xml.split("<D:response>").drop(1)
+        val basePathClean = basePath.trimStart('/').trimEnd('/')
 
         for (block in responseBlocks) {
             try {
                 val hrefMatch = Regex("<D:href>([^<]+)</D:href>").find(block)
                 val href = hrefMatch?.groupValues?.get(1) ?: continue
-
                 val cleanPath = href.trimStart('/').trimEnd('/')
-                val basePathClean = basePath.trimStart('/').trimEnd('/')
                 if (cleanPath == basePathClean || cleanPath.isEmpty()) continue
 
                 val lastModifiedMatch = Regex("<D:getlastmodified>([^<]+)</D:getlastmodified>").find(block)
                 val lastModified = lastModifiedMatch?.groupValues?.get(1)?.let { parseIsoDate(it) } ?: 0L
-
                 val contentLengthMatch = Regex("<D:getcontentlength>(\\d+)</D:getcontentlength>").find(block)
                 val size = contentLengthMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-
                 val contentTypeMatch = Regex("<D:getcontenttype>([^<]+)</D:getcontenttype>").find(block)
                 val contentType = contentTypeMatch?.groupValues?.get(1)
-
                 val name = href.split("/").filter { it.isNotEmpty() }.lastOrNull() ?: continue
 
-                files.add(
-                    WebDavFile(
-                        path = cleanPath,
-                        name = name,
-                        size = size,
-                        lastModified = lastModified,
-                        contentType = contentType
-                    )
-                )
+                files.add(WebDavFile(path = cleanPath, name = name, size = size, lastModified = lastModified, contentType = contentType))
             } catch (e: Exception) {
                 Timber.w(e, "Failed to parse WebDAV response block")
             }
         }
-
         return files
     }
 

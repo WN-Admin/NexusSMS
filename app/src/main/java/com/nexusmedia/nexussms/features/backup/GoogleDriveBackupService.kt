@@ -27,6 +27,7 @@ import com.nexusmedia.nexussms.features.backup.models.ShortcutData
 import com.nexusmedia.nexussms.features.backup.models.SignatureData
 import com.nexusmedia.nexussms.features.backup.models.ThemeData
 import com.nexusmedia.nexussms.security.EncryptionManager
+import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +58,28 @@ class GoogleDriveBackupService @Inject constructor(
 
     private val gson = Gson()
 
+    private val encryptedPrefs by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        androidx.security.crypto.EncryptedSharedPreferences.create(
+            context,
+            "gdrive_encrypted_prefs",
+            masterKey,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    private fun getBackupPassphrase(): String {
+        val existing = encryptedPrefs.getString("backup_passphrase", null)
+        if (existing != null) return existing
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%"
+        val generated = (1..32).map { chars.random() }.joinToString("")
+        encryptedPrefs.edit().putString("backup_passphrase", generated).apply()
+        return generated
+    }
+
     suspend fun createBackup(
         dataTypes: List<String> = ALL_DATA_TYPES,
         encrypt: Boolean = true,
@@ -80,9 +103,9 @@ class GoogleDriveBackupService @Inject constructor(
             val finalAlgorithm: String
 
             if (encrypt) {
-                payload = ENCRYPTION_PREFIX + encryptionManager.encryptAES256(payload)
+                payload = "PBKDF2:" + encryptionManager.encryptWithPassphrase(payload, getBackupPassphrase())
                 finalEncrypted = true
-                finalAlgorithm = "AES-256-CBC"
+                finalAlgorithm = "AES-256-GCM-PBKDF2"
             } else {
                 finalEncrypted = false
                 finalAlgorithm = ""
@@ -127,7 +150,10 @@ class GoogleDriveBackupService @Inject constructor(
             var payload = googleDriveClient.downloadFile(fileId)
                 ?: return@withContext Result.failure(Exception("Failed to download backup file"))
 
-            if (payload.startsWith(ENCRYPTION_PREFIX)) {
+            if (payload.startsWith("PBKDF2:")) {
+                val encryptedData = payload.removePrefix("PBKDF2:")
+                payload = encryptionManager.decryptWithPassphrase(encryptedData, getBackupPassphrase())
+            } else if (payload.startsWith(ENCRYPTION_PREFIX)) {
                 val encryptedData = payload.removePrefix(ENCRYPTION_PREFIX)
                 payload = encryptionManager.decryptAES256(encryptedData)
             }
