@@ -7,6 +7,10 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -14,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
@@ -53,6 +58,7 @@ class MainActivity : FragmentActivity() {
             val settings by appSecuritySettingsDao.getSecuritySettings().collectAsState(initial = null)
             var isAuthenticated by remember { mutableStateOf(false) }
             var sessionChecked by remember { mutableStateOf(false) }
+            var settingsLoaded by remember { mutableStateOf(false) }
 
             DisposableEffect(Unit) {
                 val observer = LifecycleEventObserver { _, event ->
@@ -82,6 +88,12 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
+            LaunchedEffect(settings) {
+                if (settings != null && !settingsLoaded) {
+                    settingsLoaded = true
+                }
+            }
+
             LaunchedEffect(settings, sessionChecked) {
                 if (settings != null && !isAuthenticated) {
                     val needsLock = settings!!.requireBiometricOnStartup || settings!!.appLockEnabled
@@ -105,7 +117,9 @@ class MainActivity : FragmentActivity() {
                         } else if (settings!!.appLockEnabled && settings!!.appLockValue != null) {
                             // PIN required but no biometric - AppLockScreen handles this below.
                         } else {
-                            isAuthenticated = true
+                            // Biometric required but unavailable AND no PIN configured.
+                            // Leave isAuthenticated = false so AppLockScreen renders,
+                            // which will guide the user to set a PIN.
                         }
                     } else {
                         isAuthenticated = true
@@ -122,16 +136,20 @@ class MainActivity : FragmentActivity() {
             }
 
             NexusSMSTheme {
-                val needsLock = settings != null && (settings!!.requireBiometricOnStartup || settings!!.appLockEnabled)
-                if (needsLock && !isAuthenticated) {
-                    AppLockScreen(onAuthenticated = {
-                        isAuthenticated = true
-                        CoroutineScope(Dispatchers.IO).launch {
-                            sessionManager.startSession()
-                        }
-                    })
+                if (!settingsLoaded) {
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
                 } else {
-                    MainScreen()
+                    val needsLock = settings != null && (settings!!.requireBiometricOnStartup || settings!!.appLockEnabled)
+                    if (needsLock && !isAuthenticated) {
+                        AppLockScreen(onAuthenticated = {
+                            isAuthenticated = true
+                            CoroutineScope(Dispatchers.IO).launch {
+                                sessionManager.startSession()
+                            }
+                        })
+                    } else {
+                        MainScreen()
+                    }
                 }
             }
         }

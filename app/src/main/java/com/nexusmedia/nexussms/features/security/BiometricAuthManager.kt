@@ -21,7 +21,6 @@ class BiometricAuthManager @Inject constructor(
     private val appLockManager: AppLockManager
 ) {
     companion object {
-        private const val TAG = "BiometricAuthManager"
         private const val SESSION_TIMEOUT_MS = 300000L
     }
 
@@ -32,7 +31,7 @@ class BiometricAuthManager @Inject constructor(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG
             ) == BiometricManager.BIOMETRIC_SUCCESS
         } catch (e: Exception) {
-            Timber.e(TAG, "Error checking biometric availability: ${e.message}")
+            Timber.e(e, "Error checking biometric availability")
             false
         }
     }
@@ -44,7 +43,7 @@ class BiometricAuthManager @Inject constructor(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG
             )
         } catch (e: Exception) {
-            Timber.e(TAG, "Error checking biometric capability: ${e.message}")
+            Timber.e(e, "Error checking biometric capability")
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
         }
     }
@@ -90,7 +89,7 @@ class BiometricAuthManager @Inject constructor(
             val biometricPrompt = BiometricPrompt(activity, executor, callback)
             biometricPrompt.authenticate(promptInfo)
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to start biometric authentication: ${e.message}")
+            Timber.e(e, "Failed to start biometric authentication")
             withContext(Dispatchers.Main) {
                 onResult(false)
             }
@@ -156,7 +155,7 @@ class BiometricAuthManager @Inject constructor(
             Timber.d("Biometric enabled: $biometricType")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to enable biometric: ${e.message}")
+            Timber.e(e, "Failed to enable biometric")
             Result.failure(e)
         }
     }
@@ -175,7 +174,7 @@ class BiometricAuthManager @Inject constructor(
             Timber.d("Biometric disabled")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to disable biometric: ${e.message}")
+            Timber.e(e, "Failed to disable biometric")
             Result.failure(e)
         }
     }
@@ -191,7 +190,7 @@ class BiometricAuthManager @Inject constructor(
             else settings.appLockTimeout
             elapsed > timeout
         } catch (e: Exception) {
-            Timber.e(TAG, "Error checking session lock: ${e.message}")
+            Timber.e(e, "Error checking session lock")
             true
         }
     }
@@ -201,7 +200,7 @@ class BiometricAuthManager @Inject constructor(
             appSecuritySettingsDao.updateLastAuthTime(System.currentTimeMillis())
             Timber.d("Authentication time updated")
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to update auth time: ${e.message}")
+            Timber.e(e, "Failed to update auth time")
         }
     }
 
@@ -210,7 +209,7 @@ class BiometricAuthManager @Inject constructor(
             appSecuritySettingsDao.updateSessionLocked(true)
             Timber.d("Session locked")
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to lock session: ${e.message}")
+            Timber.e(e, "Failed to lock session")
         }
     }
 }

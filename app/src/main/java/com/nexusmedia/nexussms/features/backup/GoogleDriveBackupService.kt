@@ -42,7 +42,6 @@ class GoogleDriveBackupService @Inject constructor(
     private val encryptionManager: EncryptionManager
 ) {
     companion object {
-        private const val TAG = "GoogleDriveBackupService"
         private const val BACKUP_WORK_NAME = "nexussms_auto_backup"
         private const val ENCRYPTION_PREFIX = "ENC:"
         private val ALL_DATA_TYPES = listOf("shortcuts", "signatures", "themes")
@@ -104,7 +103,7 @@ class GoogleDriveBackupService @Inject constructor(
             Timber.d("Backup completed: $backupId, fileId: $fileId")
             Result.success(completed)
         } catch (e: Exception) {
-            Timber.e(TAG, "Backup failed: ${e.message}")
+            Timber.e(e, "Backup failed")
             Result.failure(e)
         }
     }
@@ -178,7 +177,7 @@ class GoogleDriveBackupService @Inject constructor(
             Timber.d("Backup restored: $backupId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(TAG, "Restore failed: ${e.message}")
+            Timber.e(e, "Restore failed")
             Result.failure(e)
         }
     }
@@ -243,7 +242,7 @@ class GoogleDriveBackupService @Inject constructor(
 
             Timber.d("Auto backup scheduled: $frequency")
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to schedule auto backup: ${e.message}")
+            Timber.e(e, "Failed to schedule auto backup")
         }
     }
 
@@ -252,7 +251,7 @@ class GoogleDriveBackupService @Inject constructor(
             WorkManager.getInstance(context).cancelUniqueWork(BACKUP_WORK_NAME)
             Timber.d("Auto backup cancelled")
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to cancel auto backup: ${e.message}")
+            Timber.e(e, "Failed to cancel auto backup")
         }
     }
 

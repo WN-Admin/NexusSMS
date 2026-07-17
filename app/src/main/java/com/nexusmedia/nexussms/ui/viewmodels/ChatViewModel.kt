@@ -252,8 +252,7 @@ class ChatViewModel @Inject constructor(
                             timestamp = System.currentTimeMillis(),
                             type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
                             status = "SENDING",
-                            isEncrypted = true,
-                            encryptionAlgorithm = "AES256",
+                            isEncrypted = false,
                             mediaUrls = mediaUrlsStr
                         )
                         messageRepository.insertMessage(message)
@@ -328,7 +327,7 @@ class ChatViewModel @Inject constructor(
                             )
                         } catch (e: Exception) {
                             messageRepository.updateMessage(message.copy(status = "FAILED"))
-                            e.printStackTrace()
+                            Timber.e(e, "SMS send failed")
                         }
                     }
                     "RCS" -> {
@@ -365,7 +364,7 @@ class ChatViewModel @Inject constructor(
                                 val parts = smsManager.divideMessage(messageContent)
                                 smsManager.sendMultipartTextMessage(recipientPhone, null, parts, null, null)
                             } catch (e: Exception) {
-                                e.printStackTrace()
+                                Timber.e(e, "RCS fallback SMS send failed")
                             }
                         }
                     }
@@ -375,7 +374,7 @@ class ChatViewModel @Inject constructor(
                 _messageText.value = ""
                 _pendingAttachments.value = emptyList()
             } catch (e: Exception) {
-                e.printStackTrace()
+                Timber.e(e, "Message send failed")
             } finally {
                 _isSending.value = false
             }
@@ -557,7 +556,7 @@ class ChatViewModel @Inject constructor(
             try {
                 rcsService.shareSticker(recipientPhone, stickerId, conversationId)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Timber.e(e, "Sticker send failed")
             } finally {
                 _isSending.value = false
             }
@@ -660,8 +659,7 @@ class ChatViewModel @Inject constructor(
             timestamp = System.currentTimeMillis(),
             type = if (attachments.isNotEmpty()) "MMS" else "TEXT",
             status = "SENDING",
-            isEncrypted = true,
-            encryptionAlgorithm = "AES256",
+            isEncrypted = false,
             mediaUrls = mediaUrlsStr
         )
 

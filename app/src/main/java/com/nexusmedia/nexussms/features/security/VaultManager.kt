@@ -319,8 +319,13 @@ class VaultManager @Inject constructor(
     private fun loadHiddenConversations() {
         val json = vaultPrefs.getString(HIDDEN_CONVERSATIONS_KEY, null)
         if (json != null) {
-            val type = object : TypeToken<List<HiddenConversation>>() {}.type
-            _hiddenConversations.value = gson.fromJson(json, type)
+            try {
+                val type = object : TypeToken<List<HiddenConversation>>() {}.type
+                _hiddenConversations.value = gson.fromJson(json, type)
+            } catch (e: Exception) {
+                _hiddenConversations.value = emptyList()
+                vaultPrefs.edit().remove(HIDDEN_CONVERSATIONS_KEY).apply()
+            }
         }
     }
 

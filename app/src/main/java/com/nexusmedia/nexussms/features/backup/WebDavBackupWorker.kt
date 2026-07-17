@@ -23,7 +23,6 @@ class WebDavBackupWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
-        private const val TAG = "WebDavBackupWorker"
         const val WORK_NAME = "nexussms_webdav_auto_backup"
 
         fun schedule(context: Context, frequency: BackupFrequency) {
@@ -65,7 +64,7 @@ class WebDavBackupWorker @AssistedInject constructor(
             Timber.d("Starting WebDAV automatic backup")
 
             if (!webDavBackupService.authenticateFromStoredCredentials()) {
-                Timber.e(TAG, "WebDAV: no stored credentials or re-authentication failed")
+                Timber.e("WebDAV: no stored credentials or re-authentication failed")
                 return Result.failure()
             }
 
@@ -79,11 +78,11 @@ class WebDavBackupWorker @AssistedInject constructor(
                 Timber.d("WebDAV automatic backup completed successfully")
                 Result.success()
             } else {
-                Timber.e(TAG, "WebDAV automatic backup failed: ${result.exceptionOrNull()?.message}")
+                Timber.e(result.exceptionOrNull(), "WebDAV automatic backup failed")
                 if (runAttemptCount < 3) Result.retry() else Result.failure()
             }
         } catch (e: Exception) {
-            Timber.e(TAG, "WebDAV automatic backup failed with exception: ${e.message}")
+            Timber.e(e, "WebDAV automatic backup failed with exception")
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }

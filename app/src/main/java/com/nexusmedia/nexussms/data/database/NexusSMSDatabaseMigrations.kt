@@ -78,33 +78,6 @@ internal object NexusSMSDatabaseMigrations {
 
     private val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS spam_detections (
-                    id TEXT NOT NULL PRIMARY KEY,
-                    messagePreview TEXT NOT NULL,
-                    isSpam INTEGER NOT NULL,
-                    riskLevel TEXT NOT NULL,
-                    matchedPatternIds TEXT NOT NULL,
-                    confidence REAL NOT NULL,
-                    detectedAt INTEGER NOT NULL DEFAULT 0,
-                    senderNumber TEXT DEFAULT NULL,
-                    conversationId TEXT DEFAULT NULL,
-                    actionTaken TEXT DEFAULT NULL
-                )
-            """)
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS spam_rules (
-                    id TEXT NOT NULL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    pattern TEXT NOT NULL,
-                    riskLevel TEXT NOT NULL,
-                    isActive INTEGER NOT NULL DEFAULT 1,
-                    createdAt INTEGER NOT NULL DEFAULT 0,
-                    lastTriggered INTEGER DEFAULT NULL,
-                    triggerCount INTEGER NOT NULL DEFAULT 0
-                )
-            """)
         }
     }
 
@@ -115,11 +88,13 @@ internal object NexusSMSDatabaseMigrations {
 }
 
 /**
- * Adds known migrations when available.
+ * Adds all known migrations to the database builder.
  *
- * If no migrations are defined yet, this is a no-op.
+ * Named to avoid shadowing [RoomDatabase.Builder.addMigrations], which is a member
+ * function that accepts vararg Migration. The no-arg member version silently accepts
+ * zero migrations, defeating the whole purpose.
  */
-fun RoomDatabase.Builder<NexusSMSDatabase>.addMigrations(): RoomDatabase.Builder<NexusSMSDatabase> {
+fun RoomDatabase.Builder<NexusSMSDatabase>.applyNexusMigrations(): RoomDatabase.Builder<NexusSMSDatabase> {
     val migrations = NexusSMSDatabaseMigrations.migrations
     return if (migrations.isNotEmpty()) {
         this.addMigrations(*migrations.toTypedArray())

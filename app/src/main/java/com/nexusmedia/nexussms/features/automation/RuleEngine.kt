@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,13 +26,16 @@ data class IncomingMessage(
 
 @Singleton
 class RuleEngine @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val automationDao: AutomationDao
 ) {
     private val _executionLogs = MutableStateFlow<List<RuleExecutionLog>>(emptyList())
     val executionLogs: StateFlow<List<RuleExecutionLog>> = _executionLogs.asStateFlow()
 
     private val _stats = MutableStateFlow(RuleEngineStats())
     val stats: StateFlow<RuleEngineStats> = _stats.asStateFlow()
+
+    private val compiledPatternCache = mutableMapOf<String, Regex?>()
 
     suspend fun evaluateMessage(
         message: IncomingMessage,
@@ -42,9 +46,13 @@ class RuleEngine @Inject constructor(
         val sortedRules = rules.filter { it.isEnabled }.sortedByDescending { it.priority }
 
         for (rule in sortedRules) {
-            if (matchesRule(message, rule)) {
-                val log = executeRule(message, rule, actionExecutor)
-                logs.add(log)
+            try {
+                if (matchesRule(message, rule)) {
+                    val log = executeRule(message, rule, actionExecutor)
+                    logs.add(log)
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Rule ${rule.id} evaluation failed")
             }
         }
 
@@ -63,13 +71,29 @@ class RuleEngine @Inject constructor(
     private fun matchesRule(message: IncomingMessage, rule: MessageRule): Boolean {
         rule.senderPattern?.let { pattern ->
             val sender = message.senderName ?: message.senderNumber
-            if (!Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(sender)) {
+            val regex = compiledPatternCache.getOrPut(pattern) {
+                try {
+                    Regex(pattern, RegexOption.IGNORE_CASE)
+                } catch (e: Exception) {
+                    Timber.w(e, "Invalid sender regex: $pattern")
+                    null
+                }
+            } ?: return false
+            if (!regex.containsMatchIn(sender)) {
                 return false
             }
         }
 
         rule.contentPattern?.let { pattern ->
-            if (!Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(message.content)) {
+            val regex = compiledPatternCache.getOrPut(pattern) {
+                try {
+                    Regex(pattern, RegexOption.IGNORE_CASE)
+                } catch (e: Exception) {
+                    Timber.w(e, "Invalid content regex: $pattern")
+                    null
+                }
+            } ?: return false
+            if (!regex.containsMatchIn(message.content)) {
                 return false
             }
         }
@@ -133,7 +157,26 @@ class RuleEngine @Inject constructor(
             executedAt = System.currentTimeMillis(),
             success = success,
             error = error
-        )
+        ).also { log ->
+            try {
+                automationDao.insertLog(
+                    ExecutionLogEntity(
+                        id = "${rule.id}_${message.id}_${log.executedAt}",
+                        ruleId = log.ruleId,
+                        ruleName = log.ruleName,
+                        messageId = log.messageId,
+                        senderNumber = log.senderNumber,
+                        messagePreview = log.messagePreview,
+                        actionsExecutedJson = log.actionsExecuted.joinToString(",") { it.name },
+                        executedAt = log.executedAt,
+                        success = log.success,
+                        error = log.error
+                    )
+                )
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to persist execution log for rule ${rule.id}")
+            }
+        }
     }
 
     fun createRule(

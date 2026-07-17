@@ -87,7 +87,8 @@ class SafetyNumberManager @Inject constructor(
     fun generateSafetyNumber(contactId: String, myPublicKey: ByteArray, theirPublicKey: ByteArray): SafetyNumber {
         val myFingerprint = generateFingerprint(myPublicKey)
         val theirFingerprint = generateFingerprint(theirPublicKey)
-        val combinedFingerprints = myFingerprint + theirFingerprint
+        val sorted = listOf(myFingerprint, theirFingerprint).sorted()
+        val combinedFingerprints = sorted[0] + sorted[1]
         val safetyNumber = generateSafetyNumberFromFingerprints(combinedFingerprints)
         val qrData = generateQrData(contactId, myFingerprint, theirFingerprint)
         return SafetyNumber(

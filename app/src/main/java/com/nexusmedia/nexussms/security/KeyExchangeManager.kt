@@ -115,6 +115,16 @@ class KeyExchangeManager @Inject constructor(
         if (existingKeys.any { it.deviceId == message.deviceId && it.keyVersion == message.keyVersion }) {
             return null
         }
+
+        val isKeyChanged = existingKeys.any { it.publicKey != message.publicKey }
+        if (isKeyChanged) {
+            Timber.w(
+                "Key change detected for contact %s (device %s): this may indicate a device change or MITM attack. " +
+                "Safety number should be re-verified.",
+                contactId, message.deviceId
+            )
+        }
+
         existingKeys.add(KeyBundle(
             deviceId = message.deviceId,
             publicKey = message.publicKey,
@@ -152,7 +162,12 @@ class KeyExchangeManager @Inject constructor(
 
     fun getMyKeyBundle(): KeyBundle? {
         val json = encryptedPrefs.getString("my_key_bundle", null) ?: return null
-        return gson.fromJson(json, KeyBundle::class.java)
+        return try {
+            gson.fromJson(json, KeyBundle::class.java)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to deserialize my key bundle")
+            null
+        }
     }
 
     fun saveMyKeyBundle(keyBundle: KeyBundle) {
@@ -162,8 +177,13 @@ class KeyExchangeManager @Inject constructor(
 
     fun getReceivedKeys(contactId: String): List<KeyBundle> {
         val json = encryptedPrefs.getString("received_keys_$contactId", null) ?: return emptyList()
-        val type = object : TypeToken<List<KeyBundle>>() {}.type
-        return gson.fromJson(json, type)
+        return try {
+            val type = object : TypeToken<List<KeyBundle>>() {}.type
+            gson.fromJson(json, type)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to deserialize received keys for %s", contactId)
+            emptyList()
+        }
     }
 
     private fun saveReceivedKeys(contactId: String, keys: List<KeyBundle>) {

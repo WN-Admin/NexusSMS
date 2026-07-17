@@ -14,10 +14,6 @@ import javax.inject.Singleton
 class SessionManager @Inject constructor(
     private val appSecuritySettingsDao: AppSecuritySettingsDao
 ) {
-    companion object {
-        private const val TAG = "SessionManager"
-    }
-
     suspend fun isSessionActive(): Boolean = withContext(Dispatchers.IO) {
         try {
             val settings = appSecuritySettingsDao.getSecuritySettingsSync()
@@ -36,7 +32,7 @@ class SessionManager @Inject constructor(
 
             elapsed <= timeout
         } catch (e: Exception) {
-            Timber.e(TAG, "Error checking session activity: ${e.message}")
+            Timber.e(e, "Error checking session activity")
             false
         }
     }
@@ -47,7 +43,7 @@ class SessionManager @Inject constructor(
             appSecuritySettingsDao.updateSessionLocked(false)
             Timber.d("Session started")
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to start session: ${e.message}")
+            Timber.e(e, "Failed to start session")
         }
     }
 
@@ -56,7 +52,7 @@ class SessionManager @Inject constructor(
             appSecuritySettingsDao.updateSessionLocked(true)
             Timber.d("Session ended")
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to end session: ${e.message}")
+            Timber.e(e, "Failed to end session")
         }
     }
 
@@ -69,7 +65,7 @@ class SessionManager @Inject constructor(
                 else -> Long.MAX_VALUE
             }
         } catch (e: Exception) {
-            Timber.e(TAG, "Error getting session timeout: ${e.message}")
+            Timber.e(e, "Error getting session timeout")
             300000L
         }
     }
@@ -107,7 +103,7 @@ class SessionManager @Inject constructor(
                 else -> false
             }
         } catch (e: Exception) {
-            Timber.e(TAG, "Error checking biometric requirement: ${e.message}")
+            Timber.e(e, "Error checking biometric requirement")
             false
         }
     }

@@ -1,8 +1,6 @@
 package com.nexusmedia.nexussms.data.database
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.nexusmedia.nexussms.data.models.Message
@@ -20,9 +18,6 @@ import com.nexusmedia.nexussms.data.models.Template
 import com.nexusmedia.nexussms.data.models.UnifiedContact
 import com.nexusmedia.nexussms.data.converters.DateConverter
 import com.nexusmedia.nexussms.data.converters.JsonConverter
-import com.nexusmedia.nexussms.features.security.SpamDetectionEntity
-import com.nexusmedia.nexussms.features.security.SpamRuleEntity
-import com.nexusmedia.nexussms.features.security.SpamDao
 
 @Database(
     entities = [
@@ -38,9 +33,7 @@ import com.nexusmedia.nexussms.features.security.SpamDao
         AppSecuritySettings::class,
         ContactAvatar::class,
         Template::class,
-        UnifiedContact::class,
-        SpamDetectionEntity::class,
-        SpamRuleEntity::class
+        UnifiedContact::class
     ],
     version = 8,
     exportSchema = true
@@ -60,24 +53,4 @@ abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun contactAvatarDao(): ContactAvatarDao
     abstract fun templateDao(): TemplateDao
     abstract fun unifiedContactDao(): UnifiedContactDao
-    abstract fun spamDao(): SpamDao
-
-    companion object {
-        @Volatile
-        private var Instance: NexusSMSDatabase? = null
-
-        fun getDatabase(context: Context): NexusSMSDatabase {
-            return Instance ?: synchronized(this) {
-                Room.databaseBuilder(
-                    context.applicationContext,
-                    NexusSMSDatabase::class.java,
-                    "nexussms_database"
-                )
-                    .addMigrations()
-                    .fallbackToDestructiveMigration()
-                    .build()
-                    .also { Instance = it }
-            }
-        }
-    }
 }

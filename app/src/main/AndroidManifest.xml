@@ -114,11 +114,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Message Service (bound service, no special permission needed) -->
-        <service
-            android:name="com.nexusmedia.nexussms.services.MessageService"
-            android:exported="false" />
-
         <!-- Disable WorkManager's default initializer so the Hilt-aware Configuration.Provider on
              NexusSMSApplication is used instead. -->
         <provider

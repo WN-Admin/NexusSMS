@@ -44,7 +44,6 @@ class WebDavBackupService @Inject constructor(
     private val gson: Gson
 ) {
     companion object {
-        private const val TAG = "WebDavBackupService"
         private const val BACKUP_FOLDER = "NexusSMS_Backups"
         private const val BACKUP_FILE_PREFIX = "nexussms_backup_"
         private const val ENCRYPTION_PREFIX = "ENC:"
@@ -166,7 +165,7 @@ class WebDavBackupService @Inject constructor(
             Timber.d("WebDAV backup completed: $backupId")
             Result.success(completed)
         } catch (e: Exception) {
-            Timber.e(TAG, "WebDAV backup failed: ${e.message}")
+            Timber.e(e, "WebDAV backup failed")
             Result.failure(e)
         }
     }
@@ -294,7 +293,7 @@ class WebDavBackupService @Inject constructor(
             Timber.d("WebDAV backup restored: $backupId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(TAG, "WebDAV restore failed: ${e.message}")
+            Timber.e(e, "WebDAV restore failed")
             Result.failure(e)
         }
     }
@@ -321,7 +320,7 @@ class WebDavBackupService @Inject constructor(
                 }
                 .sortedByDescending { it.timestamp }
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to list WebDAV backups: ${e.message}")
+            Timber.e(e, "Failed to list WebDAV backups")
             emptyList()
         }
     }
@@ -335,7 +334,7 @@ class WebDavBackupService @Inject constructor(
 
             webDavClient.deleteFile(backupFile.path)
         } catch (e: Exception) {
-            Timber.e(TAG, "Failed to delete WebDAV backup: ${e.message}")
+            Timber.e(e, "Failed to delete WebDAV backup")
             false
         }
     }

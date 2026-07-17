@@ -15,10 +15,6 @@ class BackupWorker @AssistedInject constructor(
     private val backupService: GoogleDriveBackupService
 ) : CoroutineWorker(context, params) {
 
-    companion object {
-        private const val TAG = "BackupWorker"
-    }
-
     override suspend fun doWork(): Result {
         return try {
             Timber.d("Starting automatic backup")
@@ -32,11 +28,11 @@ class BackupWorker @AssistedInject constructor(
                 Timber.d("Automatic backup completed successfully")
                 Result.success()
             } else {
-                Timber.e(TAG, "Automatic backup failed: ${result.exceptionOrNull()?.message}")
+                Timber.e(result.exceptionOrNull(), "Automatic backup failed")
                 Result.retry()
             }
         } catch (e: Exception) {
-            Timber.e(TAG, "Automatic backup failed with exception: ${e.message}")
+            Timber.e(e, "Automatic backup failed with exception")
             if (runAttemptCount < 3) {
                 Result.retry()
             } else {

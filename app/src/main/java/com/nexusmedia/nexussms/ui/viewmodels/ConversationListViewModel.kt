@@ -10,6 +10,7 @@ import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.SmsImporter
 import com.nexusmedia.nexussms.features.matrix.MatrixAuthService
 import com.nexusmedia.nexussms.features.matrix.MatrixSyncService
+import com.nexusmedia.nexussms.features.security.VaultManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ class ConversationListViewModel @Inject constructor(
     private val contactAvatarRepository: ContactAvatarRepository,
     private val matrixAuthService: MatrixAuthService,
     private val matrixSyncService: MatrixSyncService,
+    private val vaultManager: VaultManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -79,8 +81,13 @@ class ConversationListViewModel @Inject constructor(
 
     init {
         conversationRepository.getAllConversations()
-            .onEach {
-                _conversationList.value = it
+            .onEach { conversations ->
+                val hiddenIds = if (!vaultManager.isVaultUnlocked()) {
+                    vaultManager.getHiddenConversations().map { it.originalConversationId }.toSet()
+                } else {
+                    emptySet()
+                }
+                _conversationList.value = conversations.filter { it.id !in hiddenIds }
                 _isLoading.value = false
             }
             .launchIn(viewModelScope)
@@ -327,6 +334,18 @@ class ConversationListViewModel @Inject constructor(
 
     fun clearImportResult() {
         _importResult.value = null
+    }
+
+    fun refreshConversationList() {
+        viewModelScope.launch {
+            val conversations = conversationRepository.getAllConversationsList()
+            val hiddenIds = if (!vaultManager.isVaultUnlocked()) {
+                vaultManager.getHiddenConversations().map { it.originalConversationId }.toSet()
+            } else {
+                emptySet()
+            }
+            _conversationList.value = conversations.filter { it.id !in hiddenIds }
+        }
     }
 
     fun syncMatrix() {

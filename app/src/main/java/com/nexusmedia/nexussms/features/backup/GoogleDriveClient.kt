@@ -21,7 +21,6 @@ class GoogleDriveClient @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
-        private const val TAG = "GoogleDriveClient"
         private const val BACKUP_FOLDER = "NexusSMS_Backups"
     }
 
@@ -47,7 +46,7 @@ class GoogleDriveClient @Inject constructor(
             Timber.d("Google Drive authentication successful")
             true
         } catch (e: Exception) {
-            Timber.e(TAG, "Authentication failed: ${e.message}")
+            Timber.e(e, "Authentication failed")
             false
         }
     }
@@ -71,7 +70,7 @@ class GoogleDriveClient @Inject constructor(
             Timber.d("File uploaded: $fileName (${uploadedFile.id})")
             uploadedFile.id
         } catch (e: Exception) {
-            Timber.e(TAG, "Upload failed: ${e.message}")
+            Timber.e(e, "Upload failed")
             null
         }
     }
@@ -85,7 +84,7 @@ class GoogleDriveClient @Inject constructor(
             reader.close()
             content
         } catch (e: Exception) {
-            Timber.e(TAG, "Download failed: ${e.message}")
+            Timber.e(e, "Download failed")
             null
         }
     }
@@ -102,7 +101,7 @@ class GoogleDriveClient @Inject constructor(
 
             result.files ?: emptyList()
         } catch (e: Exception) {
-            Timber.e(TAG, "List failed: ${e.message}")
+            Timber.e(e, "List failed")
             emptyList()
         }
     }
@@ -113,7 +112,7 @@ class GoogleDriveClient @Inject constructor(
             service.files().delete(fileId).execute()
             true
         } catch (e: Exception) {
-            Timber.e(TAG, "Delete failed: ${e.message}")
+            Timber.e(e, "Delete failed")
             false
         }
     }
@@ -135,7 +134,7 @@ class GoogleDriveClient @Inject constructor(
                 service.files().create(folder).execute().id
             }
         } catch (e: Exception) {
-            Timber.e(TAG, "Folder operation failed: ${e.message}")
+            Timber.e(e, "Folder operation failed")
             throw e
         }
     }
