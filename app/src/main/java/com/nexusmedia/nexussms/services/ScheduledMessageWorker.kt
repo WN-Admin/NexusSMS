@@ -8,7 +8,6 @@ import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.ScheduledMessageRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import kotlinx.coroutines.flow.first
 import timber.log.Timber
 import java.util.Calendar
 
@@ -23,11 +22,10 @@ class ScheduledMessageWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            val scheduledMessages = scheduledMessageRepository.getPendingScheduledMessages().first()
             val nowTime = System.currentTimeMillis()
+            val dueMessages = scheduledMessageRepository.getDueMessages(nowTime)
 
-            for (scheduledMessage in scheduledMessages) {
-                if (scheduledMessage.scheduledTime > nowTime) continue
+            for (scheduledMessage in dueMessages) {
 
                 val sendResult = smsSender.sendTextMessage(
                     conversationId = scheduledMessage.conversationId,

@@ -3,7 +3,6 @@ package com.nexusmedia.nexussms.ui.viewmodels
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexusmedia.nexussms.data.models.Conversation
@@ -31,6 +30,8 @@ import com.nexusmedia.nexussms.data.repository.ReactionRepository
 import com.nexusmedia.nexussms.data.models.Reaction
 import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.security.EncryptionKeyVerifier
+import com.nexusmedia.nexussms.security.KeyChangeWarningStore
 import com.nexusmedia.nexussms.services.SmsSender
 import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -55,6 +56,8 @@ class ChatViewModel @Inject constructor(
     private val shortcodeExpansionService: ShortcodeExpansionService,
     private val rcsService: RcsService,
     private val encryptionManager: EncryptionManager,
+    private val encryptionKeyVerifier: EncryptionKeyVerifier,
+    private val keyChangeWarningStore: KeyChangeWarningStore,
     private val contactAvatarRepository: ContactAvatarRepository,
     private val themeRepository: ThemeRepository,
     private val matrixMessageService: MatrixMessageService,
@@ -108,24 +111,35 @@ class ChatViewModel @Inject constructor(
     private val _showTemplatePicker = MutableStateFlow(false)
     val showTemplatePicker: StateFlow<Boolean> = _showTemplatePicker.asStateFlow()
 
+    private val _keyChangeWarning = MutableStateFlow(false)
+    val keyChangeWarning: StateFlow<Boolean> = _keyChangeWarning.asStateFlow()
+
     private var conversationJob: Job? = null
     private var messagesJob: Job? = null
-    private var messagePageOffset = 0
-    private val messagePageSize = 50
+    private var sendDelayJob: Job? = null
+    private var allConversationMessages = emptyList<Message>()
+    private var visibleMessageCount = 50
     private var allMessagesLoaded = false
 
     val hasMoreMessages: StateFlow<Boolean>
         get() = _hasMoreMessages
     private val _hasMoreMessages = MutableStateFlow(true)
 
+    private val _isSendDelayed = MutableStateFlow(false)
+    val isSendDelayed: StateFlow<Boolean> = _isSendDelayed.asStateFlow()
+
+    private val _sendDelayRemaining = MutableStateFlow(0)
+    val sendDelayRemaining: StateFlow<Int> = _sendDelayRemaining.asStateFlow()
+
     fun loadConversation(conversationId: String) {
         conversationJob?.cancel()
         messagesJob?.cancel()
 
         _sendDelaySeconds.value = messagingPreferences.sendDelaySeconds
-        messagePageOffset = 0
+        visibleMessageCount = 50
         allMessagesLoaded = false
         _hasMoreMessages.value = true
+        allConversationMessages = emptyList()
 
         conversationJob = conversationRepository.getAllConversations()
             .onEach { list ->
@@ -149,21 +163,22 @@ class ChatViewModel @Inject constructor(
                             )
                         }
                     } else null
+
+                    keyChangeWarningStore.hasKeyChangeWarning(normalized)
+                        .onEach { _keyChangeWarning.value = it }
+                        .launchIn(viewModelScope)
                 }
             }
             .launchIn(viewModelScope)
 
         messagesJob = messageRepository.getConversationMessages(conversationId)
-            .onEach { msgs ->
-                val initial = if (messagePageOffset == 0) {
-                    msgs.take(messagePageSize)
-                } else {
-                    _messages.value + msgs.drop(messagePageOffset)
-                }
-                _messages.value = initial
-                _hasMoreMessages.value = initial.size < msgs.size
-                messagePageOffset = initial.size
-                generateSmartReplies(initial)
+            .onEach { allMsgs ->
+                allConversationMessages = allMsgs
+                val count = visibleMessageCount.coerceAtMost(allMsgs.size)
+                _messages.value = allMsgs.take(count)
+                _hasMoreMessages.value = count < allMsgs.size
+                allMessagesLoaded = count >= allMsgs.size
+                generateSmartReplies(allMsgs)
             }
             .launchIn(viewModelScope)
 
@@ -182,15 +197,11 @@ class ChatViewModel @Inject constructor(
 
     fun loadMoreMessages() {
         if (allMessagesLoaded) return
-        viewModelScope.launch {
-            val convId = _currentConversation.value?.id ?: return@launch
-            val all = messageRepository.getConversationMessages(convId).first()
-            val nextEnd = (messagePageOffset + messagePageSize).coerceAtMost(all.size)
-            if (nextEnd >= all.size) allMessagesLoaded = true
-            _messages.value = all.take(nextEnd)
-            _hasMoreMessages.value = !allMessagesLoaded
-            messagePageOffset = nextEnd
-        }
+        visibleMessageCount += 50
+        val count = visibleMessageCount.coerceAtMost(allConversationMessages.size)
+        _messages.value = allConversationMessages.take(count)
+        _hasMoreMessages.value = count < allConversationMessages.size
+        if (count >= allConversationMessages.size) allMessagesLoaded = true
     }
 
     fun updateMessageText(text: String) {
@@ -213,12 +224,18 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendMessage(conversationId: String, recipientPhone: String) {
-        viewModelScope.launch {
+        sendDelayJob = viewModelScope.launch {
             _isSending.value = true
             try {
                 val delay = _sendDelaySeconds.value
                 if (delay > 0) {
-                    kotlinx.coroutines.delay(delay * 1000L)
+                    _isSendDelayed.value = true
+                    for (remaining in delay downTo 1) {
+                        _sendDelayRemaining.value = remaining
+                        kotlinx.coroutines.delay(1000L)
+                    }
+                    _sendDelayRemaining.value = 0
+                    _isSendDelayed.value = false
                 }
 
                 var messageContent = _messageText.value
@@ -442,6 +459,14 @@ class ChatViewModel @Inject constructor(
         _sendDelaySeconds.value = seconds.coerceIn(0, 9)
     }
 
+    fun cancelPendingSend() {
+        sendDelayJob?.cancel()
+        sendDelayJob = null
+        _isSendDelayed.value = false
+        _sendDelayRemaining.value = 0
+        _isSending.value = false
+    }
+
     fun copySelectedMessages() {
         val texts = _messages.value
             .filter { it.id in _selectedMessages.value }
@@ -600,6 +625,13 @@ class ChatViewModel @Inject constructor(
 
     fun hideTemplatePicker() {
         _showTemplatePicker.value = false
+    }
+
+    fun dismissKeyChangeWarning() {
+        viewModelScope.launch {
+            val normalized = _currentConversation.value?.participantPhoneNumbers?.replace(Regex("[^+\\d]"), "") ?: return@launch
+            keyChangeWarningStore.dismissKeyChangeWarning(normalized)
+        }
     }
 
     fun applyTemplate(template: Template) {

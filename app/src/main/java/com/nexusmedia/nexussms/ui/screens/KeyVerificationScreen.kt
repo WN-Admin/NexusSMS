@@ -8,8 +8,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nexusmedia.nexussms.security.EncryptionKeyVerifier
 import com.nexusmedia.nexussms.security.KeyExchangeManager
 import com.nexusmedia.nexussms.security.SafetyNumberManager
+import com.nexusmedia.nexussms.security.VerificationStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -18,11 +20,14 @@ fun KeyVerificationScreen(
     contactName: String,
     keyExchangeManager: KeyExchangeManager,
     safetyNumberManager: SafetyNumberManager,
+    encryptionKeyVerifier: EncryptionKeyVerifier,
     onBack: () -> Unit,
     onNavigateToSafetyNumber: () -> Unit
 ) {
     val isVerified by remember { mutableStateOf(safetyNumberManager.isVerified(contactId)) }
     val verificationMethod by remember { mutableStateOf(safetyNumberManager.getSafetyNumber(contactId)?.verificationMethod) }
+    val verificationStatus by remember { mutableStateOf(encryptionKeyVerifier.getVerificationStatus(contactId)) }
+    val hasKeyChanged = verificationStatus != VerificationStatus.Verified && keyExchangeManager.getReceivedKeys(contactId).isNotEmpty() && !isVerified
 
     Scaffold(
         topBar = {
@@ -46,10 +51,11 @@ fun KeyVerificationScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isVerified)
-                        MaterialTheme.colorScheme.primaryContainer
-                    else
-                        MaterialTheme.colorScheme.errorContainer
+                    containerColor = when {
+                        isVerified -> MaterialTheme.colorScheme.primaryContainer
+                        hasKeyChanged -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                        else -> MaterialTheme.colorScheme.errorContainer
+                    }
                 )
             ) {
                 Row(
@@ -57,35 +63,49 @@ fun KeyVerificationScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        if (isVerified) Icons.Default.Verified else Icons.Default.Warning,
+                        when {
+                            isVerified -> Icons.Default.Verified
+                            hasKeyChanged -> Icons.Default.ErrorOutline
+                            else -> Icons.Default.Warning
+                        },
                         contentDescription = null,
                         modifier = Modifier.size(48.dp),
-                        tint = if (isVerified)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.error
+                        tint = when {
+                            isVerified -> MaterialTheme.colorScheme.primary
+                            hasKeyChanged -> MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                            else -> MaterialTheme.colorScheme.error
+                        }
                     )
 
                     Spacer(modifier = Modifier.width(16.dp))
 
                     Column {
                         Text(
-                            text = if (isVerified) "Verified" else "Not Verified",
+                            text = when {
+                                isVerified -> "Verified"
+                                hasKeyChanged -> "Key Changed"
+                                else -> "Not Verified"
+                            },
                             style = MaterialTheme.typography.headlineSmall,
-                            color = if (isVerified)
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            else
-                                MaterialTheme.colorScheme.onErrorContainer
+                            color = when {
+                                isVerified -> MaterialTheme.colorScheme.onPrimaryContainer
+                                hasKeyChanged -> MaterialTheme.colorScheme.onErrorContainer
+                                else -> MaterialTheme.colorScheme.onErrorContainer
+                            }
                         )
 
-                        if (isVerified) {
-                            Text(
+                        when {
+                            isVerified -> Text(
                                 text = "Verified via ${verificationMethod?.name?.replace("_", " ") ?: "Unknown"}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                        } else {
-                            Text(
+                            hasKeyChanged -> Text(
+                                text = "The encryption key for $contactName has changed. Verify to ensure no one is intercepting your messages.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            else -> Text(
                                 text = "Verify your encryption with $contactName",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer

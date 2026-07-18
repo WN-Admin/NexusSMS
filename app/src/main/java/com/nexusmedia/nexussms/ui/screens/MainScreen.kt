@@ -23,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexusmedia.nexussms.security.KeyExchangeManager
+import com.nexusmedia.nexussms.security.EncryptionKeyVerifier
 import com.nexusmedia.nexussms.security.SafetyNumberManager
 import com.nexusmedia.nexussms.features.security.SpamDetector
 import com.nexusmedia.nexussms.features.security.SpamBlocklistManager
@@ -356,6 +357,7 @@ fun MainScreen() {
                     contactName = "Contact",
                     keyExchangeManager = entryPoint.keyExchangeManager(),
                     safetyNumberManager = entryPoint.safetyNumberManager(),
+                    encryptionKeyVerifier = entryPoint.encryptionKeyVerifier(),
                     onBack = { navController.popBackStack() },
                     onNavigateToSafetyNumber = {
                         navController.navigate("safety_number/$conversationId")
@@ -371,6 +373,7 @@ fun MainScreen() {
 interface KeyVerificationEntryPoint {
     fun safetyNumberManager(): SafetyNumberManager
     fun keyExchangeManager(): KeyExchangeManager
+    fun encryptionKeyVerifier(): EncryptionKeyVerifier
 }
 
 @EntryPoint

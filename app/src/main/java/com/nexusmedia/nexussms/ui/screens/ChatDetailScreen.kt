@@ -147,6 +147,7 @@ fun ChatDetailScreen(
     val smartReplies by viewModel.smartReplies.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val showTemplatePicker by viewModel.showTemplatePicker.collectAsState()
+    val keyChangeWarning by viewModel.keyChangeWarning.collectAsState()
 
     val context = LocalContext.current
     var showEmojiPicker by remember { mutableStateOf(false) }
@@ -164,6 +165,8 @@ fun ChatDetailScreen(
     val multiSelectMode by viewModel.multiSelectMode.collectAsState()
     val selectedMessages by viewModel.selectedMessages.collectAsState()
     val sendDelaySeconds by viewModel.sendDelaySeconds.collectAsState()
+    val isSendDelayed by viewModel.isSendDelayed.collectAsState()
+    val sendDelayRemaining by viewModel.sendDelayRemaining.collectAsState()
     val allConversations by viewModel.allConversations.collectAsState()
 
     val detectedUrl = remember(messageText) {
@@ -425,10 +428,62 @@ fun ChatDetailScreen(
     ) { paddingValues ->
         val effectiveBubbleTheme = conversationBubbleTheme ?: LocalBubbleTheme.current
         CompositionLocalProvider(LocalBubbleTheme provides effectiveBubbleTheme) {
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            AnimatedVisibility(visible = keyChangeWarning) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    shape = RoundedCornerShape(0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Security Alert",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "The encryption key for ${conversation?.displayName ?: "this contact"} has changed. This could mean they reinstalled the app, or someone may be intercepting your messages.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        TextButton(onClick = {
+                            viewModel.dismissKeyChangeWarning()
+                            onNavigateToSafetyNumber(conversationId)
+                        }) {
+                            Text("Verify", color = MaterialTheme.colorScheme.error)
+                        }
+                        IconButton(onClick = { viewModel.dismissKeyChangeWarning() }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
         ) {
             val wallpaperUrl = conversation?.wallpaperUrl
             val gradientColors = when (wallpaperUrl) {
@@ -712,30 +767,6 @@ fun ChatDetailScreen(
                     text = {
                         LazyColumn {
                             items(allConversations.filter { it.id != conversationId }) { conv ->
-            AnimatedVisibility(visible = sendDelaySeconds > 0) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        Icons.Default.Timer,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = context.getString(com.nexusmedia.nexussms.R.string.send_delay_seconds, sendDelaySeconds),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
             Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -884,6 +915,38 @@ fun ChatDetailScreen(
                 }
             }
 
+            AnimatedVisibility(visible = isSendDelayed) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Default.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = context.getString(com.nexusmedia.nexussms.R.string.send_delay_seconds, sendDelayRemaining),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.cancelPendingSend() }) {
+                        Text(
+                            "Cancel",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -990,8 +1053,9 @@ fun ChatDetailScreen(
                     )
                 } // FilledIconButton
             } // Row
-        } // Column
+        } // Column (compose bar)
         } // Box
+        } // outer Column (warning + content)
     } // CompositionLocalProvider
     } // Scaffold content
 } // ChatDetailScreen

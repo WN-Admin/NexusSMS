@@ -16,7 +16,9 @@ import com.nexusmedia.nexussms.features.automation.RuleEngine
 import com.nexusmedia.nexussms.features.automation.ActionExecutor
 import com.nexusmedia.nexussms.features.automation.IncomingMessage
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.security.KeyChangeWarningStore
 import com.nexusmedia.nexussms.security.KeyExchangeManager
+import com.nexusmedia.nexussms.security.KeyExchangeMessage
 import com.nexusmedia.nexussms.services.SmsNotificationHelper
 import com.nexusmedia.nexussms.utils.Validators
 import dagger.hilt.android.AndroidEntryPoint
@@ -36,6 +38,7 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject lateinit var conversationRepository: ConversationRepository
     @Inject lateinit var encryptionManager: EncryptionManager
     @Inject lateinit var keyExchangeManager: KeyExchangeManager
+    @Inject lateinit var keyChangeWarningStore: KeyChangeWarningStore
     @Inject lateinit var smsNotificationHelper: SmsNotificationHelper
     @Inject lateinit var perContactNotificationSettings: PerContactNotificationSettings
     @Inject lateinit var spamBlocklistManager: SpamBlocklistManager
@@ -110,6 +113,29 @@ class SmsReceiver : BroadcastReceiver() {
         timestamp: Long
     ) {
         try {
+            if (rawBody.startsWith("KEY_EXCHANGE:")) {
+                val json = rawBody.removePrefix("KEY_EXCHANGE:")
+                try {
+                    val keyExchangeMsg = com.google.gson.Gson().fromJson(json, KeyExchangeMessage::class.java)
+                    if (keyExchangeMsg != null) {
+                        val normalizedPhone = Validators.normalizePhone(senderPhoneNumber)
+                        keyExchangeManager.processKeyExchange(
+                            contactId = normalizedPhone,
+                            message = keyExchangeMsg,
+                            onKeyChanged = { contactId, _ ->
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    keyChangeWarningStore.markKeyChanged(contactId)
+                                }
+                            }
+                        )
+                        Timber.d("Processed key exchange from %s for contact %s", senderPhoneNumber, normalizedPhone)
+                    }
+                } catch (e: Exception) {
+                    Timber.w(e, "Failed to parse KEY_EXCHANGE from %s", senderPhoneNumber)
+                }
+                return
+            }
+
             val isEncryptedPayload = rawBody.startsWith("ENC:")
             val messageBody = if (isEncryptedPayload) {
                 try {

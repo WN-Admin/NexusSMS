@@ -17,6 +17,8 @@ import com.nexusmedia.nexussms.features.messaging.ChannelRoutingManager
 import com.nexusmedia.nexussms.features.smartreply.SmartReplyService
 import com.nexusmedia.nexussms.data.repository.TemplateRepository
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.security.EncryptionKeyVerifier
+import com.nexusmedia.nexussms.security.KeyChangeWarningStore
 import com.nexusmedia.nexussms.services.SmsSender
 import com.nexusmedia.nexussms.data.repository.ReactionRepository
 import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
@@ -44,6 +46,8 @@ class ChatViewModelTest {
     private val shortcodeExpansionService = mockk<ShortcodeExpansionService>()
     private val rcsService = mockk<RcsService>()
     private val encryptionManager = mockk<EncryptionManager>()
+    private val encryptionKeyVerifier = mockk<EncryptionKeyVerifier>(relaxed = true)
+    private val keyChangeWarningStore = mockk<KeyChangeWarningStore>(relaxed = true)
     private val contactAvatarRepository = mockk<com.nexusmedia.nexussms.data.repository.ContactAvatarRepository>(relaxed = true)
     private val themeRepository = mockk<com.nexusmedia.nexussms.data.repository.ThemeRepository>(relaxed = true)
     private val matrixMessageService = mockk<MatrixMessageService>(relaxed = true)
@@ -74,6 +78,8 @@ class ChatViewModelTest {
             shortcodeExpansionService,
             rcsService,
             encryptionManager,
+            encryptionKeyVerifier,
+            keyChangeWarningStore,
             contactAvatarRepository,
             themeRepository,
             matrixMessageService,
