@@ -24,7 +24,10 @@ class ConversationListViewModelTest {
     private val contactAvatarRepository = mockk<com.nexusmedia.nexussms.data.repository.ContactAvatarRepository>(relaxed = true)
     private val matrixAuthService = mockk<com.nexusmedia.nexussms.features.matrix.MatrixAuthService>(relaxed = true)
     private val matrixSyncService = mockk<com.nexusmedia.nexussms.features.matrix.MatrixSyncService>(relaxed = true)
-    private val vaultManager = mockk<VaultManager>()
+    private val vaultManager = mockk<VaultManager>(relaxed = true) {
+        every { isVaultUnlocked() } returns false
+        every { getHiddenConversations() } returns emptyList()
+    }
     private val context = mockk<android.content.Context>(relaxed = true)
 
     private val conversations = listOf(

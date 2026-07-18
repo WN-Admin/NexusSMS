@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,6 +32,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -52,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,6 +79,13 @@ fun BackupScreen(
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreBackup by remember { mutableStateOf<BackupMetadata?>(null) }
     var restorePassphrase by remember { mutableStateOf("") }
+    var backupPassphrase by remember { mutableStateOf("") }
+    var showPassphrase by remember { mutableStateOf(false) }
+    var hasPassphrase by remember {
+        mutableStateOf(
+            try { viewModel.hasBackupPassphrase() } catch (_: Exception) { false }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -102,6 +113,22 @@ fun BackupScreen(
                     errorMessage = backupError,
                     onBackupNow = { viewModel.createManualBackup() },
                     onDismissError = { viewModel.clearError() }
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                PassphraseSetupCard(
+                    hasPassphrase = hasPassphrase,
+                    passphrase = backupPassphrase,
+                    showPassphrase = showPassphrase,
+                    onPassphraseChange = { backupPassphrase = it },
+                    onToggleVisibility = { showPassphrase = !showPassphrase },
+                    onSavePassphrase = {
+                        viewModel.setBackupPassphrase(backupPassphrase)
+                        hasPassphrase = true
+                        backupPassphrase = ""
+                    }
                 )
             }
 
@@ -515,6 +542,81 @@ private fun StatusBadge(status: String) {
             color = color,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+@Composable
+private fun PassphraseSetupCard(
+    hasPassphrase: Boolean,
+    passphrase: String,
+    showPassphrase: Boolean,
+    onPassphraseChange: (String) -> Unit,
+    onToggleVisibility: () -> Unit,
+    onSavePassphrase: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CloudUpload,
+                    contentDescription = null,
+                    tint = if (hasPassphrase) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Encryption Passphrase",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = if (hasPassphrase) "Passphrase set — backups are portable to new devices"
+                        else "Required for encrypted backups — you'll need it to restore on a new device",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (hasPassphrase) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            if (!hasPassphrase) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = passphrase,
+                    onValueChange = onPassphraseChange,
+                    label = { Text("Set Passphrase") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (showPassphrase) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = onToggleVisibility) {
+                            Icon(
+                                if (showPassphrase) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle passphrase visibility"
+                            )
+                        }
+                    },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onSavePassphrase,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = passphrase.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Passphrase")
+                }
+            }
+        }
     }
 }
 
