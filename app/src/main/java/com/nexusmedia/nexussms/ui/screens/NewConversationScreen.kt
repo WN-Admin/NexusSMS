@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
+import com.nexusmedia.nexussms.utils.Validators
 import dagger.hilt.components.SingletonComponent
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -54,6 +55,7 @@ fun NewConversationScreen(
 ) {
     var phoneNumber by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
+    var phoneError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     val contactPickerLauncher = rememberLauncherForActivityResult(
@@ -116,10 +118,17 @@ fun NewConversationScreen(
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
+                    onValueChange = {
+                        phoneNumber = it
+                        phoneError = if (it.isNotBlank() && !Validators.isValidPhoneNumber(it)) {
+                            "Enter a valid phone number (7-15 digits, optional + prefix)"
+                        } else null
+                    },
                     label = { Text("Phone Number") },
                     modifier = Modifier.weight(1f),
-                    singleLine = true
+                    singleLine = true,
+                    isError = phoneError != null,
+                    supportingText = phoneError?.let { { Text(it) } }
                 )
                 IconButton(onClick = {
                     val intent = Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI)
@@ -139,14 +148,14 @@ fun NewConversationScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = {
-                    if (phoneNumber.isNotBlank()) {
+                    if (phoneNumber.isNotBlank() && Validators.isValidPhoneNumber(phoneNumber)) {
                         viewModel.createConversation(phoneNumber, displayName) { id ->
                             onConversationCreated(id)
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = phoneNumber.isNotBlank()
+                enabled = phoneNumber.isNotBlank() && Validators.isValidPhoneNumber(phoneNumber)
             ) {
                 Text("Start Conversation")
             }

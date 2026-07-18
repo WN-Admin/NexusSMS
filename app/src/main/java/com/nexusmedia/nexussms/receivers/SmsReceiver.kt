@@ -16,7 +16,9 @@ import com.nexusmedia.nexussms.features.automation.RuleEngine
 import com.nexusmedia.nexussms.features.automation.ActionExecutor
 import com.nexusmedia.nexussms.features.automation.IncomingMessage
 import com.nexusmedia.nexussms.security.EncryptionManager
+import com.nexusmedia.nexussms.security.KeyExchangeManager
 import com.nexusmedia.nexussms.services.SmsNotificationHelper
+import com.nexusmedia.nexussms.utils.Validators
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,7 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject lateinit var messageRepository: MessageRepository
     @Inject lateinit var conversationRepository: ConversationRepository
     @Inject lateinit var encryptionManager: EncryptionManager
+    @Inject lateinit var keyExchangeManager: KeyExchangeManager
     @Inject lateinit var smsNotificationHelper: SmsNotificationHelper
     @Inject lateinit var perContactNotificationSettings: PerContactNotificationSettings
     @Inject lateinit var spamBlocklistManager: SpamBlocklistManager
@@ -55,7 +58,7 @@ class SmsReceiver : BroadcastReceiver() {
                 for ((senderPhoneNumber, fullBody, timestamp) in grouped) {
                     processOneMessage(
                         context = context,
-                        senderPhoneNumber = senderPhoneNumber,
+                        senderPhoneNumber = Validators.normalizePhone(senderPhoneNumber),
                         rawBody = fullBody,
                         timestamp = timestamp
                     )
@@ -112,8 +115,18 @@ class SmsReceiver : BroadcastReceiver() {
                 try {
                     encryptionManager.decryptAES256(rawBody.removePrefix("ENC:"))
                 } catch (e: Exception) {
-                    Timber.w(e, "Failed to decrypt ENC: message from %s, storing raw", senderPhoneNumber)
-                    "[Encrypted message - unable to decrypt]"
+                    val ecdhKey = keyExchangeManager.deriveSharedSecret(senderPhoneNumber)
+                    if (ecdhKey != null) {
+                        try {
+                            encryptionManager.decryptForContact(rawBody, ecdhKey)
+                        } catch (e2: Exception) {
+                            Timber.w(e2, "ECDH decrypt also failed for %s, storing raw", senderPhoneNumber)
+                            "[Encrypted message - unable to decrypt]"
+                        }
+                    } else {
+                        Timber.w(e, "No ECDH key for %s, storing raw", senderPhoneNumber)
+                        "[Encrypted message - unable to decrypt]"
+                    }
                 }
             } else {
                 rawBody

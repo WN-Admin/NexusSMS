@@ -6,6 +6,7 @@ import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.data.repository.MessageRepository
+import com.nexusmedia.nexussms.utils.Validators
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,9 +46,10 @@ class SearchViewModel @Inject constructor(
                     if (q.length < 2) {
                         flowOf(SearchResult())
                     } else {
+                        val escaped = Validators.escapeLikeQuery(q)
                         kotlinx.coroutines.flow.combine(
-                            conversationRepository.searchConversations(q),
-                            messageRepository.searchMessages(q)
+                            conversationRepository.searchConversations(escaped),
+                            messageRepository.searchMessages(escaped)
                         ) { convos, messages ->
                             SearchResult(convos, messages)
                         }

@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.nexusmedia.nexussms.utils.Validators
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -57,18 +58,18 @@ class SpamBlocklistManager @Inject constructor(
 
     suspend fun blockNumber(number: String) {
         val blocked = getBlockedNumbers().toMutableSet()
-        blocked.add(number)
+        blocked.add(Validators.normalizePhone(number))
         saveBlockedNumbers(blocked)
     }
 
     suspend fun unblockNumber(number: String) {
         val blocked = getBlockedNumbers().toMutableSet()
-        blocked.remove(number)
+        blocked.remove(Validators.normalizePhone(number))
         saveBlockedNumbers(blocked)
     }
 
     suspend fun isBlocked(number: String): Boolean {
-        return getBlockedNumbers().contains(number)
+        return getBlockedNumbers().contains(Validators.normalizePhone(number))
     }
 
     suspend fun getBlockedNumbers(): Set<String> {
@@ -92,16 +93,17 @@ class SpamBlocklistManager @Inject constructor(
     }
 
     suspend fun handleSpamDetection(message: String, senderNumber: String, conversationId: String?): SpamAction {
+        val normalized = Validators.normalizePhone(senderNumber)
         val detection = spamDetector.analyzeMessage(message)
 
         if (!detection.isSpam) {
             return SpamAction.NONE
         }
 
-        val shouldAutoBlock = shouldBlock(message, senderNumber)
+        val shouldAutoBlock = shouldBlock(message, normalized)
 
         if (shouldAutoBlock) {
-            blockNumber(senderNumber)
+            blockNumber(normalized)
             return SpamAction.BLOCKED
         }
 

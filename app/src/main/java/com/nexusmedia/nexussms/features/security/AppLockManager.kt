@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
@@ -88,7 +89,7 @@ class AppLockManager @Inject constructor(
             val expectedHash = parts[1]
 
             val inputHash = hashPinWithSalt(input, saltBase64)
-            if (inputHash == expectedHash) {
+            if (MessageDigest.isEqual(inputHash.toByteArray(Charsets.UTF_8), expectedHash.toByteArray(Charsets.UTF_8))) {
                 prefs.edit()
                     .putInt(FAILED_ATTEMPTS_KEY, 0)
                     .putLong(LOCKOUT_UNTIL_KEY, 0L)

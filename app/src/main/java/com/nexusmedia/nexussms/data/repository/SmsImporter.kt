@@ -7,6 +7,7 @@ import android.provider.Telephony
 import com.nexusmedia.nexussms.data.models.ContactAvatar
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.models.Message
+import com.nexusmedia.nexussms.utils.Validators
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import timber.log.Timber
@@ -79,7 +80,7 @@ class SmsImporter @Inject constructor(
                     sourceSmsId = smsId
                 )
 
-                conversations.getOrPut(normalizePhone(address)) { mutableListOf() }.add(message)
+                conversations.getOrPut(Validators.normalizePhone(address)) { mutableListOf() }.add(message)
             }
         }
 
@@ -92,7 +93,7 @@ class SmsImporter @Inject constructor(
                 if (msg.senderPhoneNumber == "self") msg.recipientPhoneNumber else msg.senderPhoneNumber
             } ?: normalizedAddress
             val existing = existingConversations.find {
-                normalizePhone(it.participantPhoneNumbers) == normalizedAddress
+                Validators.normalizePhone(it.participantPhoneNumbers) == normalizedAddress
             }
 
             val conversationId = if (existing != null) {
@@ -169,10 +170,6 @@ class SmsImporter @Inject constructor(
         return ResyncResult(removed)
     }
 
-    private fun normalizePhone(phone: String): String {
-        return phone.replace(Regex("[^+\\d]"), "")
-    }
-
     private fun lookupContact(phoneNumber: String): Pair<String, String?> {
         val uri = Uri.withAppendedPath(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
@@ -211,7 +208,7 @@ class SmsImporter @Inject constructor(
 
         for (conversation in conversations) {
             val phone = conversation.participantPhoneNumbers
-            val normalized = normalizePhone(phone)
+            val normalized = Validators.normalizePhone(phone)
             val (_, photoUri) = lookupContact(phone)
             if (photoUri != null) {
                 avatars.add(

@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
@@ -141,7 +142,7 @@ class VaultManager @Inject constructor(
 
         val inputHash = hashPinWithSalt(pin, storedSalt)
 
-        if (inputHash == storedPinHash) {
+        if (MessageDigest.isEqual(inputHash.toByteArray(Charsets.UTF_8), storedPinHash.toByteArray(Charsets.UTF_8))) {
             _vaultState.value = VaultState.UNLOCKED
             updateAccessStats()
             vaultPrefs.edit()
@@ -154,7 +155,7 @@ class VaultManager @Inject constructor(
         val decoySalt = vaultPrefs.getString(DECOY_PIN_SALT_KEY, null)
         if (decoyPinHash != null && decoySalt != null) {
             val decoyInputHash = hashPinWithSalt(pin, decoySalt)
-            if (decoyInputHash == decoyPinHash) {
+            if (MessageDigest.isEqual(decoyInputHash.toByteArray(Charsets.UTF_8), decoyPinHash.toByteArray(Charsets.UTF_8))) {
                 _vaultState.value = VaultState.DECOY
                 updateAccessStats()
                 vaultPrefs.edit()
@@ -262,7 +263,7 @@ class VaultManager @Inject constructor(
         if (storedHash == null) return false
 
         val oldHash = hashPinWithSalt(oldPin, storedSalt)
-        if (oldHash != storedHash) return false
+        if (!MessageDigest.isEqual(oldHash.toByteArray(Charsets.UTF_8), storedHash.toByteArray(Charsets.UTF_8))) return false
 
         val newSaltBytes = ByteArray(SALT_LENGTH).also { SecureRandom().nextBytes(it) }
         val newSalt = java.util.Base64.getEncoder().encodeToString(newSaltBytes)
@@ -281,7 +282,7 @@ class VaultManager @Inject constructor(
         if (storedHash == null) return false
 
         val pinHash = hashPinWithSalt(pin, storedSalt)
-        if (pinHash != storedHash) return false
+        if (!MessageDigest.isEqual(pinHash.toByteArray(Charsets.UTF_8), storedHash.toByteArray(Charsets.UTF_8))) return false
 
         vaultPrefs.edit()
             .putBoolean(VAULT_ENABLED_KEY, false)

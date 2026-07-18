@@ -17,5 +17,9 @@ object Validators {
     fun normalizePhone(phone: String): String {
         return phone.replace(Regex("[^+\\d]"), "")
     }
+
+    fun escapeLikeQuery(query: String): String {
+        return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    }
 }
 

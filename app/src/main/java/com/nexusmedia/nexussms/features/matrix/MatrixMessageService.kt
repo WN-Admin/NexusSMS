@@ -5,6 +5,7 @@ import com.nexusmedia.nexussms.data.repository.MessageRepository
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import timber.log.Timber
+import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +21,14 @@ class MatrixMessageService @Inject constructor(
     private val messageRepository: MessageRepository,
     private val matrixAuthService: MatrixAuthService
 ) {
+    private val secureRandom = SecureRandom()
+
+    private fun generateTxnId(): String {
+        val randomBytes = ByteArray(8)
+        secureRandom.nextBytes(randomBytes)
+        val randomHex = randomBytes.joinToString("") { "%02x".format(it) }
+        return "nexussms_${System.currentTimeMillis()}_$randomHex"
+    }
 
     suspend fun sendTextMessage(
         roomId: String,
@@ -32,7 +41,7 @@ class MatrixMessageService @Inject constructor(
 
         return try {
             val api = matrixClient.getApi()
-            val txnId = "nexussms_${System.currentTimeMillis()}_${(Math.random() * 10000).toLong()}"
+            val txnId = generateTxnId()
             val body = MatrixSendMessageBody(body = content)
 
             val response = api.sendMessage("Bearer $token", roomId, txnId, body)
@@ -75,7 +84,7 @@ class MatrixMessageService @Inject constructor(
 
         return try {
             val api = matrixClient.getApi()
-            val txnId = "nexussms_${System.currentTimeMillis()}_${(Math.random() * 10000).toLong()}"
+            val txnId = generateTxnId()
             val info = mutableMapOf<String, Any>()
             if (width != null) info["w"] = width
             if (height != null) info["h"] = height
@@ -126,7 +135,7 @@ class MatrixMessageService @Inject constructor(
 
         return try {
             val api = matrixClient.getApi()
-            val txnId = "nexussms_${System.currentTimeMillis()}_${(Math.random() * 10000).toLong()}"
+            val txnId = generateTxnId()
             val info = mutableMapOf<String, Any>()
             if (size != null) info["size"] = size
             info["mimetype"] = mimeType

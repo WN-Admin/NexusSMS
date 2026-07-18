@@ -336,18 +336,6 @@ class ConversationListViewModel @Inject constructor(
         _importResult.value = null
     }
 
-    fun refreshConversationList() {
-        viewModelScope.launch {
-            val conversations = conversationRepository.getAllConversationsList()
-            val hiddenIds = if (!vaultManager.isVaultUnlocked()) {
-                vaultManager.getHiddenConversations().map { it.originalConversationId }.toSet()
-            } else {
-                emptySet()
-            }
-            _conversationList.value = conversations.filter { it.id !in hiddenIds }
-        }
-    }
-
     fun syncMatrix() {
         viewModelScope.launch {
             _isImporting.value = true

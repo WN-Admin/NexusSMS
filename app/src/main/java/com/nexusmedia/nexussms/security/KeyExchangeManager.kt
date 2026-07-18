@@ -1,6 +1,8 @@
 package com.nexusmedia.nexussms.security
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -11,6 +13,8 @@ import timber.log.Timber
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
@@ -71,6 +75,9 @@ class KeyExchangeManager @Inject constructor(
     companion object {
         private const val TAG = "KeyExchangeManager"
         private const val CURVE = "secp256r1" // NIST P-256
+        private const val ANDROID_KEYSTORE_ALIAS = "nexussms_identity_key"
+        private val HKDF_INFO = "NexusSMS E2E v1 encryption".toByteArray(Charsets.UTF_8)
+        private val HKDF_SALT = "NexusSMS-HKDF-SALT".toByteArray(Charsets.UTF_8)
     }
 
     private val masterKey = MasterKey.Builder(context)
@@ -89,9 +96,29 @@ class KeyExchangeManager @Inject constructor(
 
     fun generateKeyBundle(): KeyBundle {
         val deviceId = getOrCreateDeviceId()
-        val kpg = KeyPairGenerator.getInstance("EC")
-        kpg.initialize(ECGenParameterSpec(CURVE))
-        val keyPair = kpg.generateKeyPair()
+
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        keyStore.load(null)
+
+        val keyPair = if (keyStore.containsAlias(ANDROID_KEYSTORE_ALIAS)) {
+            val privateKey = keyStore.getKey(ANDROID_KEYSTORE_ALIAS, null) as java.security.PrivateKey
+            val publicKey = keyStore.getCertificate(ANDROID_KEYSTORE_ALIAS).publicKey
+            KeyPair(publicKey, privateKey)
+        } else {
+            val kpg = KeyPairGenerator.getInstance(
+                KeyProperties.KEY_ALGORITHM_EC,
+                "AndroidKeyStore"
+            )
+            kpg.initialize(
+                KeyGenParameterSpec.Builder(
+                    ANDROID_KEYSTORE_ALIAS,
+                    KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
+                )
+                    .setAlgorithmParameterSpec(ECGenParameterSpec(CURVE))
+                    .build()
+            )
+            kpg.generateKeyPair()
+        }
 
         val publicKeyBase64 = Base64.encodeToString(
             keyPair.public.encoded, Base64.NO_WRAP
@@ -106,7 +133,7 @@ class KeyExchangeManager @Inject constructor(
             privateKey = privateKeyBase64
         )
         saveMyKeyBundle(bundle)
-        Timber.d("Generated new EC keypair for device %s", deviceId)
+        Timber.d("Generated/retrieved EC keypair for device %s (AndroidKeyStore-backed)", deviceId)
         return bundle
     }
 
@@ -199,7 +226,10 @@ class KeyExchangeManager @Inject constructor(
     private fun getOrCreateDeviceId(): String {
         var deviceId = encryptedPrefs.getString("device_id", null)
         if (deviceId == null) {
-            deviceId = "device_${System.currentTimeMillis()}_${(Math.random() * 10000).toInt()}"
+            val randomBytes = ByteArray(8)
+            java.security.SecureRandom().nextBytes(randomBytes)
+            val randomHex = randomBytes.joinToString("") { "%02x".format(it) }
+            deviceId = "device_${System.currentTimeMillis()}_$randomHex"
             encryptedPrefs.edit().putString("device_id", deviceId).apply()
         }
         return deviceId
@@ -256,8 +286,18 @@ class KeyExchangeManager @Inject constructor(
         keyAgreement.doPhase(theirPublicKey, true)
         val sharedSecret = keyAgreement.generateSecret()
 
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
-        val derivedKeyBytes = digest.digest(sharedSecret)
+        val derivedKeyBytes = hkdfSha256(sharedSecret)
         return SecretKeySpec(derivedKeyBytes, "AES")
+    }
+
+    private fun hkdfSha256(inputKeyMaterial: ByteArray): ByteArray {
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+
+        mac.init(SecretKeySpec(HKDF_SALT, "HmacSHA256"))
+        val prk = mac.doFinal(inputKeyMaterial)
+
+        mac.init(SecretKeySpec(prk, "HmacSHA256"))
+        val infoPadded = HKDF_INFO + 0x01.toByte()
+        return mac.doFinal(infoPadded).copyOf(32)
     }
 }

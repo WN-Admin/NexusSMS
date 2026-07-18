@@ -17,7 +17,6 @@ import com.nexusmedia.nexussms.data.models.ContactAvatar
 import com.nexusmedia.nexussms.data.models.Template
 import com.nexusmedia.nexussms.data.models.UnifiedContact
 import com.nexusmedia.nexussms.data.converters.DateConverter
-import com.nexusmedia.nexussms.data.converters.JsonConverter
 
 @Database(
     entities = [
@@ -38,7 +37,7 @@ import com.nexusmedia.nexussms.data.converters.JsonConverter
     version = 8,
     exportSchema = true
 )
-@TypeConverters(DateConverter::class, JsonConverter::class)
+@TypeConverters(DateConverter::class)
 abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun conversationDao(): ConversationDao

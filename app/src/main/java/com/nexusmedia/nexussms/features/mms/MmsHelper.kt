@@ -44,6 +44,7 @@ class MmsHelper @Inject constructor(
                 } while (bytes.size > limit && quality > 30)
                 if (bytes.size > limit) {
                     Timber.w("MMS image still over limit after compression: ${bytes.size} > $limit")
+                    return null
                 }
                 bytes
             }
