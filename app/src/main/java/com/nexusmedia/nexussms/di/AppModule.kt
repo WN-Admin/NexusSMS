@@ -219,6 +219,13 @@ object AppModule {
     fun provideAutomationDao(automationDatabase: AutomationDatabase): AutomationDao =
         automationDatabase.automationDao()
 
+    // --- E2E ---
+
+    @Provides
+    @Singleton
+    fun provideE2ESessionDao(database: NexusSMSDatabase): com.nexusmedia.nexussms.data.database.E2ESessionDao =
+        database.e2eSessionDao()
+
     // --- Services ---
 
     @Provides

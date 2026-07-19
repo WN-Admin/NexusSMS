@@ -12,6 +12,7 @@ import com.nexusmedia.nexussms.security.EncryptionKeyVerifier
 import com.nexusmedia.nexussms.security.KeyExchangeManager
 import com.nexusmedia.nexussms.security.SafetyNumberManager
 import com.nexusmedia.nexussms.security.VerificationStatus
+import com.nexusmedia.nexussms.security.e2e.E2ESessionManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,6 +22,7 @@ fun KeyVerificationScreen(
     keyExchangeManager: KeyExchangeManager,
     safetyNumberManager: SafetyNumberManager,
     encryptionKeyVerifier: EncryptionKeyVerifier,
+    e2eSessionManager: E2ESessionManager,
     onBack: () -> Unit,
     onNavigateToSafetyNumber: () -> Unit
 ) {
@@ -28,6 +30,11 @@ fun KeyVerificationScreen(
     val verificationMethod by remember { mutableStateOf(safetyNumberManager.getSafetyNumber(contactId)?.verificationMethod) }
     val verificationStatus by remember { mutableStateOf(encryptionKeyVerifier.getVerificationStatus(contactId)) }
     val hasKeyChanged = verificationStatus != VerificationStatus.Verified && keyExchangeManager.getReceivedKeys(contactId).isNotEmpty() && !isVerified
+    var hasE2ESession by remember { mutableStateOf(false) }
+
+    LaunchedEffect(contactId) {
+        hasE2ESession = e2eSessionManager.hasActiveSession(contactId)
+    }
 
     Scaffold(
         topBar = {
@@ -84,6 +91,7 @@ fun KeyVerificationScreen(
                             text = when {
                                 isVerified -> "Verified"
                                 hasKeyChanged -> "Key Changed"
+                                hasE2ESession -> "E2E Encrypted (Not Verified)"
                                 else -> "Not Verified"
                             },
                             style = MaterialTheme.typography.headlineSmall,
@@ -102,6 +110,11 @@ fun KeyVerificationScreen(
                             )
                             hasKeyChanged -> Text(
                                 text = "The encryption key for $contactName has changed. Verify to ensure no one is intercepting your messages.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            hasE2ESession -> Text(
+                                text = "Your conversation with $contactName is end-to-end encrypted via X3DH + Double Ratchet. Verify the safety number to confirm identity.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )

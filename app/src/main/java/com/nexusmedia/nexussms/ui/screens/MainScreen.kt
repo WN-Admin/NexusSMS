@@ -298,6 +298,7 @@ fun MainScreen() {
                     contactId = conversationId,
                     contactName = "Contact",
                     safetyNumberManager = entryPoint.safetyNumberManager(),
+                    e2eSessionManager = entryPoint.e2eSessionManager(),
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -358,6 +359,7 @@ fun MainScreen() {
                     keyExchangeManager = entryPoint.keyExchangeManager(),
                     safetyNumberManager = entryPoint.safetyNumberManager(),
                     encryptionKeyVerifier = entryPoint.encryptionKeyVerifier(),
+                    e2eSessionManager = entryPoint.e2eSessionManager(),
                     onBack = { navController.popBackStack() },
                     onNavigateToSafetyNumber = {
                         navController.navigate("safety_number/$conversationId")
@@ -374,6 +376,7 @@ interface KeyVerificationEntryPoint {
     fun safetyNumberManager(): SafetyNumberManager
     fun keyExchangeManager(): KeyExchangeManager
     fun encryptionKeyVerifier(): EncryptionKeyVerifier
+    fun e2eSessionManager(): com.nexusmedia.nexussms.security.e2e.E2ESessionManager
 }
 
 @EntryPoint

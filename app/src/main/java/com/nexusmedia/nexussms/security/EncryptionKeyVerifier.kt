@@ -1,6 +1,9 @@
 package com.nexusmedia.nexussms.security
 
 import android.util.Base64
+import com.nexusmedia.nexussms.security.e2e.E2EKeyManager
+import com.nexusmedia.nexussms.security.e2e.E2ESessionManager
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,7 +24,9 @@ enum class VerificationStatus {
 @Singleton
 class EncryptionKeyVerifier @Inject constructor(
     private val safetyNumberManager: SafetyNumberManager,
-    private val keyExchangeManager: KeyExchangeManager
+    private val keyExchangeManager: KeyExchangeManager,
+    private val e2eKeyManager: E2EKeyManager,
+    private val e2eSessionManager: E2ESessionManager
 ) {
     fun verifyContact(contactId: String, theirPublicKeyBytes: ByteArray): VerificationResult {
         val existingKeys = keyExchangeManager.getReceivedKeys(contactId)
@@ -56,14 +61,29 @@ class EncryptionKeyVerifier @Inject constructor(
 
     fun getVerificationStatus(contactId: String): VerificationStatus {
         val isVerified = safetyNumberManager.isVerified(contactId)
-        val hasKeys = keyExchangeManager.getReceivedKeys(contactId).isNotEmpty()
+        val hasLegacyKeys = keyExchangeManager.getReceivedKeys(contactId).isNotEmpty()
+        val hasE2eSession = run {
+            val identity = e2eKeyManager.getIdentityOrNull()
+            identity != null
+        }
         val safetyNumber = safetyNumberManager.getSafetyNumber(contactId)
 
         return when {
             isVerified -> VerificationStatus.Verified
-            hasKeys -> VerificationStatus.Unverified
+            hasLegacyKeys || hasE2eSession -> VerificationStatus.Unverified
             safetyNumber != null -> VerificationStatus.PendingVerification
             else -> VerificationStatus.NoKeys
+        }
+    }
+
+    suspend fun getMyE2EIdentityPublicKey(): ByteArray? {
+        return e2eKeyManager.getIdentityOrNull()?.identityKeyPair?.publicKey
+    }
+
+    fun hasE2ESessionForContact(contactId: String): Boolean {
+        return run {
+            val identity = e2eKeyManager.getIdentityOrNull() ?: return@run false
+            identity.registeredWithServer
         }
     }
 }

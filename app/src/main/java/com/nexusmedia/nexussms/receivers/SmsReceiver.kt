@@ -19,6 +19,7 @@ import com.nexusmedia.nexussms.security.EncryptionManager
 import com.nexusmedia.nexussms.security.KeyChangeWarningStore
 import com.nexusmedia.nexussms.security.KeyExchangeManager
 import com.nexusmedia.nexussms.security.KeyExchangeMessage
+import com.nexusmedia.nexussms.security.e2e.E2ESessionManager
 import com.nexusmedia.nexussms.services.SmsNotificationHelper
 import com.nexusmedia.nexussms.utils.Validators
 import dagger.hilt.android.AndroidEntryPoint
@@ -45,6 +46,7 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject lateinit var ruleEngine: RuleEngine
     @Inject lateinit var actionExecutor: ActionExecutor
     @Inject lateinit var automationDao: com.nexusmedia.nexussms.features.automation.AutomationDao
+    @Inject lateinit var e2eSessionManager: E2ESessionManager
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
@@ -136,8 +138,27 @@ class SmsReceiver : BroadcastReceiver() {
                 return
             }
 
+            val isE2ePayload = rawBody.startsWith("E2E:")
             val isEncryptedPayload = rawBody.startsWith("ENC:")
-            val messageBody = if (isEncryptedPayload) {
+            val messageBody = if (isE2ePayload) {
+                try {
+                    val normalizedSender = Validators.normalizePhone(senderPhoneNumber)
+                    val decrypted = e2eSessionManager.decryptMessage(
+                        contactId = normalizedSender,
+                        senderPhone = senderPhoneNumber,
+                        rawBody = rawBody
+                    )
+                    if (decrypted != null) {
+                        decrypted
+                    } else {
+                        Timber.w("E2E decrypt returned null from %s", senderPhoneNumber)
+                        "[Encrypted message - unable to decrypt]"
+                    }
+                } catch (e: Exception) {
+                    Timber.w(e, "E2E decrypt failed for %s", senderPhoneNumber)
+                    "[Encrypted message - unable to decrypt]"
+                }
+            } else if (isEncryptedPayload) {
                 try {
                     encryptionManager.decryptAES256(rawBody.removePrefix("ENC:"))
                 } catch (e: Exception) {
@@ -212,8 +233,12 @@ class SmsReceiver : BroadcastReceiver() {
                 timestamp = timestamp,
                 status = "DELIVERED",
                 type = "TEXT",
-                isEncrypted = isEncryptedPayload,
-                encryptionAlgorithm = if (isEncryptedPayload) "AES256" else null,
+                isEncrypted = isE2ePayload || isEncryptedPayload,
+                encryptionAlgorithm = when {
+                    isE2ePayload -> "X25519/AES-256-GCM"
+                    isEncryptedPayload -> "AES256"
+                    else -> null
+                },
                 sourceSmsId = sourceSmsId
             )
             messageRepository.insertMessage(message)

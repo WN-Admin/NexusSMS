@@ -32,6 +32,7 @@ import com.nexusmedia.nexussms.features.messaging.MessagingPreferences
 import com.nexusmedia.nexussms.security.EncryptionManager
 import com.nexusmedia.nexussms.security.EncryptionKeyVerifier
 import com.nexusmedia.nexussms.security.KeyChangeWarningStore
+import com.nexusmedia.nexussms.security.e2e.E2ESessionManager
 import com.nexusmedia.nexussms.services.SmsSender
 import com.nexusmedia.nexussms.services.ScheduledMessageScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -72,7 +73,8 @@ class ChatViewModel @Inject constructor(
     private val smsSender: SmsSender,
     private val reactionRepository: ReactionRepository,
     private val messagingPreferences: MessagingPreferences,
-    private val scheduledMessageScheduler: ScheduledMessageScheduler
+    private val scheduledMessageScheduler: ScheduledMessageScheduler,
+    private val e2eSessionManager: E2ESessionManager
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -241,6 +243,16 @@ class ChatViewModel @Inject constructor(
                 var messageContent = _messageText.value
                 messageContent = shortcodeExpansionService.expandMessage(messageContent)
                 messageContent = encryptionManager.generateMessageSignature(messageContent)
+
+                val hasE2eSession = e2eSessionManager.hasActiveSession(conversationId)
+                if (hasE2eSession) {
+                    val encrypted = e2eSessionManager.encryptMessage(conversationId, messageContent)
+                    if (encrypted != null) {
+                        messageContent = encrypted
+                    } else {
+                        Timber.w("E2E encryption failed for %s, sending plaintext", conversationId)
+                    }
+                }
 
                 val attachments = _pendingAttachments.value
                 val mediaUrlsStr = attachments.joinToString(",")

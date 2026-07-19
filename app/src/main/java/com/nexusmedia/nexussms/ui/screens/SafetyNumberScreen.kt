@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.nexusmedia.nexussms.security.SafetyNumber
 import com.nexusmedia.nexussms.security.SafetyNumberManager
 import com.nexusmedia.nexussms.security.VerificationMethod
+import com.nexusmedia.nexussms.security.e2e.E2ESessionManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,13 +25,30 @@ fun SafetyNumberScreen(
     contactId: String,
     contactName: String,
     safetyNumberManager: SafetyNumberManager,
+    e2eSessionManager: E2ESessionManager,
     onBack: () -> Unit
 ) {
-    val safetyNumber by remember { mutableStateOf(safetyNumberManager.getSafetyNumber(contactId)) }
+    var safetyNumber by remember { mutableStateOf(safetyNumberManager.getSafetyNumber(contactId)) }
     var showQrScanner by remember { mutableStateOf(false) }
     var showSafetyNumberCompare by remember { mutableStateOf(false) }
     var verificationComplete by remember { mutableStateOf(false) }
     var isVerified by remember { mutableStateOf(safetyNumberManager.isVerified(contactId)) }
+
+    LaunchedEffect(contactId) {
+        if (safetyNumber == null) {
+            val myKey = e2eSessionManager.getMyIdentityKey()
+            val peerKey = e2eSessionManager.getPeerIdentityKey(contactId)
+            if (myKey != null && peerKey != null) {
+                val generated = safetyNumberManager.generateSafetyNumber(
+                    contactId = contactId,
+                    myPublicKey = myKey,
+                    theirPublicKey = peerKey
+                )
+                safetyNumberManager.storeSafetyNumber(generated)
+                safetyNumber = generated
+            }
+        }
+    }
 
     Scaffold(
         topBar = {

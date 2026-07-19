@@ -17,6 +17,7 @@ import com.nexusmedia.nexussms.data.models.ContactAvatar
 import com.nexusmedia.nexussms.data.models.Template
 import com.nexusmedia.nexussms.data.models.UnifiedContact
 import com.nexusmedia.nexussms.data.converters.DateConverter
+import com.nexusmedia.nexussms.security.e2e.E2ESessionEntity
 
 @Database(
     entities = [
@@ -32,9 +33,10 @@ import com.nexusmedia.nexussms.data.converters.DateConverter
         AppSecuritySettings::class,
         ContactAvatar::class,
         Template::class,
-        UnifiedContact::class
+        UnifiedContact::class,
+        E2ESessionEntity::class
     ],
-    version = 8,
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(DateConverter::class)
@@ -52,4 +54,5 @@ abstract class NexusSMSDatabase : RoomDatabase() {
     abstract fun contactAvatarDao(): ContactAvatarDao
     abstract fun templateDao(): TemplateDao
     abstract fun unifiedContactDao(): UnifiedContactDao
+    abstract fun e2eSessionDao(): E2ESessionDao
 }

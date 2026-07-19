@@ -81,9 +81,41 @@ internal object NexusSMSDatabaseMigrations {
         }
     }
 
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS e2e_sessions (
+                    contactId TEXT NOT NULL PRIMARY KEY,
+                    rootKey TEXT NOT NULL,
+                    sendingChainKey TEXT NOT NULL DEFAULT '',
+                    receivingChainKey TEXT NOT NULL DEFAULT '',
+                    sendingMessageNumber INTEGER NOT NULL DEFAULT 0,
+                    receivingMessageNumber INTEGER NOT NULL DEFAULT 0,
+                    previousSendingChainLength INTEGER NOT NULL DEFAULT 0,
+                    lastRatchetPublicKey TEXT NOT NULL DEFAULT '',
+                    ourRatchetKeyPairPublic TEXT NOT NULL,
+                    ourRatchetKeyPairPrivate TEXT NOT NULL,
+                    skippedMessageKeys TEXT NOT NULL DEFAULT '{}',
+                    aliceIdentityKey TEXT NOT NULL DEFAULT '',
+                    bobIdentityKey TEXT NOT NULL DEFAULT '',
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+            """)
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_e2e_sessions_contactId ON e2e_sessions (contactId)")
+        }
+    }
+
+    private val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE e2e_sessions ADD COLUMN aliceIdentityKey TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE e2e_sessions ADD COLUMN bobIdentityKey TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
     val migrations: List<Migration> = listOf(
         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-        MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8
+        MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10
     )
 }
 
