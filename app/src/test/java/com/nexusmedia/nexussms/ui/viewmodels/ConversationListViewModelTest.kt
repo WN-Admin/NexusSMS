@@ -3,6 +3,8 @@ package com.nexusmedia.nexussms.ui.viewmodels
 import com.nexusmedia.nexussms.data.models.Conversation
 import com.nexusmedia.nexussms.data.repository.ConversationRepository
 import com.nexusmedia.nexussms.features.security.VaultManager
+import io.mockk.MockKAnnotations
+import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -68,12 +70,14 @@ class ConversationListViewModelTest {
 
     @Before
     fun setup() {
+        MockKAnnotations.init(this, relaxUnitFun = true)
         setupMocks()
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        clearAllMocks()
     }
 
     @Test

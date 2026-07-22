@@ -174,6 +174,14 @@ fun ChatDetailScreen(
         urlRegex.find(messageText)?.value
     }
 
+    val urlHost = remember(detectedUrl) {
+        detectedUrl?.let {
+            try {
+                java.net.URL(if (it.startsWith("http")) it else "https://$it").host
+            } catch (_: Exception) { it }
+        }
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -888,7 +896,7 @@ fun ChatDetailScreen(
                         },
                         label = {
                             Text(
-                                text = try { java.net.URL(if (detectedUrl.startsWith("http")) detectedUrl else "https://$detectedUrl").host } catch (_: Exception) { detectedUrl },
+                                text = urlHost ?: detectedUrl,
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1
                             )

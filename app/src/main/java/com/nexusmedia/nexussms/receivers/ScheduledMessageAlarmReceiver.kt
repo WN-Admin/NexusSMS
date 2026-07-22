@@ -24,15 +24,22 @@ class ScheduledMessageAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val scheduledMsgId = intent.getStringExtra(EXTRA_SCHEDULED_MSG_ID) ?: return
-        val conversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID) ?: return
-        val recipientPhone = intent.getStringExtra(EXTRA_RECIPIENT) ?: return
-        val content = intent.getStringExtra(EXTRA_CONTENT) ?: return
-        val repeatType = intent.getStringExtra(EXTRA_REPEAT_TYPE)
-        val repeatUntil = intent.getLongExtra(EXTRA_REPEAT_UNTIL, -1L)
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val scheduled = scheduledMessageRepository.getScheduledMessageById(scheduledMsgId)
+                if (scheduled == null) {
+                    Timber.w("Scheduled message %s not found in DB, alarm is stale", scheduledMsgId)
+                    return@launch
+                }
+
+                val conversationId = scheduled.conversationId
+                val recipientPhone = scheduled.recipientPhoneNumber
+                val content = scheduled.content
+                val repeatType = scheduled.repeatType
+                val repeatUntil = scheduled.repeatUntil ?: -1L
+
                 val result = smsSender.sendTextMessage(
                     conversationId = conversationId,
                     recipientPhone = recipientPhone,
@@ -42,25 +49,23 @@ class ScheduledMessageAlarmReceiver : BroadcastReceiver() {
 
                 if (result.isSuccess) {
                     val sentAt = System.currentTimeMillis()
-                    scheduledMessageRepository.getScheduledMessageById(scheduledMsgId)?.let { scheduled ->
-                        val nextScheduledTime = computeNextScheduleTime(repeatType, scheduled.scheduledTime)
-                        if (nextScheduledTime != null &&
-                            (repeatUntil <= 0 || nextScheduledTime <= repeatUntil)
-                        ) {
-                            scheduledMessageRepository.updateScheduledMessage(
-                                scheduled.copy(
-                                    scheduledTime = nextScheduledTime,
-                                    status = "PENDING",
-                                    sentAt = sentAt,
-                                    failureReason = null
-                                )
+                    val nextScheduledTime = computeNextScheduleTime(repeatType, scheduled.scheduledTime)
+                    if (nextScheduledTime != null &&
+                        (repeatUntil <= 0 || nextScheduledTime <= repeatUntil)
+                    ) {
+                        scheduledMessageRepository.updateScheduledMessage(
+                            scheduled.copy(
+                                scheduledTime = nextScheduledTime,
+                                status = "PENDING",
+                                sentAt = sentAt,
+                                failureReason = null
                             )
-                        } else {
-                            scheduledMessageRepository.updateScheduledMessage(
-                                scheduled.copy(status = "SENT", sentAt = sentAt, failureReason = null)
-                            )
-                        }
-                    } ?: Timber.w("ScheduledMessage row %s not found after alarm send", scheduledMsgId)
+                        )
+                    } else {
+                        scheduledMessageRepository.updateScheduledMessage(
+                            scheduled.copy(status = "SENT", sentAt = sentAt, failureReason = null)
+                        )
+                    }
 
                     conversationRepository.getConversationById(conversationId)?.let { conv ->
                         conversationRepository.updateConversation(
@@ -68,10 +73,7 @@ class ScheduledMessageAlarmReceiver : BroadcastReceiver() {
                         )
                     }
 
-                    scheduleNextAlarmIfRepeating(
-                        context, scheduledMsgId, conversationId, recipientPhone,
-                        content, repeatType, repeatUntil, System.currentTimeMillis()
-                    )
+                    scheduleNextAlarmIfRepeating(context, scheduledMsgId, repeatType, repeatUntil, System.currentTimeMillis())
                 } else {
                     Timber.e(result.exceptionOrNull(), "Alarm send failed for message %s", scheduledMsgId)
                 }
@@ -100,32 +102,44 @@ class ScheduledMessageAlarmReceiver : BroadcastReceiver() {
     private fun scheduleNextAlarmIfRepeating(
         context: Context,
         scheduledMsgId: String,
-        conversationId: String,
-        recipientPhone: String,
-        content: String,
         repeatType: String?,
         repeatUntil: Long,
         currentScheduledTime: Long
     ) {
         val nextTime = computeNextScheduleTime(repeatType, currentScheduledTime) ?: return
         if (repeatUntil > 0 && nextTime > repeatUntil) return
-        scheduleExactAlarm(context, scheduledMsgId, conversationId, recipientPhone, content, nextTime, repeatType, repeatUntil)
+        scheduleExactAlarm(context, scheduledMsgId, nextTime, repeatType, repeatUntil)
     }
 
     companion object {
         const val EXTRA_SCHEDULED_MSG_ID = "extra_scheduled_msg_id"
-        const val EXTRA_CONVERSATION_ID = "extra_conversation_id"
-        const val EXTRA_RECIPIENT = "extra_recipient"
-        const val EXTRA_CONTENT = "extra_content"
-        const val EXTRA_REPEAT_TYPE = "extra_repeat_type"
-        const val EXTRA_REPEAT_UNTIL = "extra_repeat_until"
+
+        suspend fun rescheduleAllPendingAlarms(
+            context: Context,
+            scheduledMessageRepository: ScheduledMessageRepository
+        ) {
+            val pendingMessages = scheduledMessageRepository.getAllPendingScheduledMessages()
+            var rescheduled = 0
+            for (msg in pendingMessages) {
+                if (msg.scheduledTime > System.currentTimeMillis()) {
+                    scheduleExactAlarm(
+                        context = context,
+                        scheduledMsgId = msg.id,
+                        triggerAtMillis = msg.scheduledTime,
+                        repeatType = msg.repeatType,
+                        repeatUntil = msg.repeatUntil ?: -1L
+                    )
+                    rescheduled++
+                } else {
+                    Timber.w("Scheduled message %s is overdue (was %d), skipping", msg.id, msg.scheduledTime)
+                }
+            }
+            Timber.d("Boot reschedule: %d of %d pending alarms re-registered", rescheduled, pendingMessages.size)
+        }
 
         fun scheduleExactAlarm(
             context: Context,
             scheduledMsgId: String,
-            conversationId: String,
-            recipientPhone: String,
-            content: String,
             triggerAtMillis: Long,
             repeatType: String? = null,
             repeatUntil: Long = -1L
@@ -133,11 +147,6 @@ class ScheduledMessageAlarmReceiver : BroadcastReceiver() {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val intent = Intent(context, ScheduledMessageAlarmReceiver::class.java).apply {
                 putExtra(EXTRA_SCHEDULED_MSG_ID, scheduledMsgId)
-                putExtra(EXTRA_CONVERSATION_ID, conversationId)
-                putExtra(EXTRA_RECIPIENT, recipientPhone)
-                putExtra(EXTRA_CONTENT, content)
-                putExtra(EXTRA_REPEAT_TYPE, repeatType)
-                putExtra(EXTRA_REPEAT_UNTIL, repeatUntil)
             }
             val requestCode = scheduledMsgId.hashCode()
             val pendingIntent = PendingIntent.getBroadcast(

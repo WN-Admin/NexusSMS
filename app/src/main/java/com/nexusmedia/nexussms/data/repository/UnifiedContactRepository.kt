@@ -154,17 +154,16 @@ class UnifiedContactRepository @Inject constructor(
         val mergedPhones = (primaryPhones + secondaryPhones).distinct()
         val mergedIdentities = (primaryIdentities + secondaryIdentities).distinctBy { "${it.platform}_${it.id}" }
 
-        unifiedContactDao.updateUnifiedContact(
-            primary.copy(
+        unifiedContactDao.mergeContactsAtomic(
+            primary = primary.copy(
                 phoneNumbers = gson.toJson(mergedPhones),
                 platformIdentities = gson.toJson(mergedIdentities),
                 isFavorite = primary.isFavorite || secondary.isFavorite,
                 notes = listOfNotNull(primary.notes, secondary.notes).joinToString("\n").ifBlank { null },
                 updatedAt = System.currentTimeMillis()
-            )
+            ),
+            secondary = secondary
         )
-
-        unifiedContactDao.deleteUnifiedContact(secondary)
     }
 
     suspend fun autoLinkFromConversations() {

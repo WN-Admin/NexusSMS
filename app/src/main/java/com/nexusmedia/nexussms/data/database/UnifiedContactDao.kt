@@ -41,4 +41,10 @@ interface UnifiedContactDao {
 
     @Query("SELECT * FROM unified_contacts ORDER BY displayName ASC")
     suspend fun getAllUnifiedContactsList(): List<UnifiedContact>
+
+    @Transaction
+    suspend fun mergeContactsAtomic(primary: UnifiedContact, secondary: UnifiedContact) {
+        updateUnifiedContact(primary)
+        deleteUnifiedContact(secondary)
+    }
 }

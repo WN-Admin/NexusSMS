@@ -53,4 +53,7 @@ class ScheduledMessageRepository @Inject constructor(
 
     fun getScheduledMessages(conversationId: String): Flow<List<ScheduledMessage>> =
         scheduledMessageDao.getScheduledMessages(conversationId)
+
+    suspend fun getAllPendingScheduledMessages(): List<ScheduledMessage> =
+        scheduledMessageDao.getAllPendingScheduledMessages()
 }

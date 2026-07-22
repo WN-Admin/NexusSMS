@@ -307,6 +307,9 @@ interface ScheduledMessageDao {
         status: String,
         reason: String? = null
     )
+
+    @Query("SELECT * FROM scheduled_messages WHERE status = 'PENDING' ORDER BY scheduledTime ASC")
+    suspend fun getAllPendingScheduledMessages(): List<ScheduledMessage>
 }
 
 @Dao

@@ -22,12 +22,9 @@ import javax.inject.Singleton
 
 @Singleton
 class EncryptionManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val masterKey: MasterKey
 ) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
     private val encryptedSharedPreferences = EncryptedSharedPreferences.create(
         context,
         "secret_shared_prefs",

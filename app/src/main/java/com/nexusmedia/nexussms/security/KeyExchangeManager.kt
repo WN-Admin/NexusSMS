@@ -70,7 +70,8 @@ data class KeyExchangeMessage(
 @Singleton
 class KeyExchangeManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val safetyNumberManager: SafetyNumberManager
+    private val safetyNumberManager: SafetyNumberManager,
+    private val masterKey: MasterKey
 ) {
     companion object {
         private const val TAG = "KeyExchangeManager"
@@ -79,10 +80,6 @@ class KeyExchangeManager @Inject constructor(
         private val HKDF_INFO = "NexusSMS E2E v1 encryption".toByteArray(Charsets.UTF_8)
         private val HKDF_SALT = "NexusSMS-HKDF-SALT".toByteArray(Charsets.UTF_8)
     }
-
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
 
     private val encryptedPrefs = EncryptedSharedPreferences.create(
         context,

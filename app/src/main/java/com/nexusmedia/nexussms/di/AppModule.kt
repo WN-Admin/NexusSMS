@@ -37,6 +37,7 @@ import com.nexusmedia.nexussms.features.backup.GoogleDriveBackupService
 import com.nexusmedia.nexussms.features.backup.GoogleDriveClient
 import com.nexusmedia.nexussms.features.backup.WebDavClient
 import com.nexusmedia.nexussms.security.EncryptionManager
+import androidx.security.crypto.MasterKey
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -162,11 +163,14 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideEncryptionManager(
-        @ApplicationContext context: Context
-    ): EncryptionManager = EncryptionManager(context)
+    fun provideMasterKey(@ApplicationContext context: Context): MasterKey {
+        return MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
 
-    // BiometricAuthManager, AppLockManager use @Inject constructors — resolved by Hilt automatically.
+    // EncryptionManager, BiometricAuthManager, AppLockManager use @Inject constructors — resolved by Hilt automatically.
+    // EncryptionManager depends on MasterKey from provideMasterKey().
 
     // MessagingPreferences, MmsHelper, SmsSender, SmsNotificationHelper, ScheduledMessageScheduler,
     // ChannelRouter, ChannelRoutingManager use @Inject constructors — resolved by Hilt automatically.

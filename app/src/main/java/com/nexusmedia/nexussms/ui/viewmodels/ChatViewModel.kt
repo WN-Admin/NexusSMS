@@ -567,19 +567,16 @@ class ChatViewModel @Inject constructor(
                 scheduledTime = scheduleAt,
                 status = "PENDING"
             )
-            scheduledMessageRepository.insertScheduledMessage(scheduledMessage)
             val delayMs = scheduleAt - System.currentTimeMillis()
             if (delayMs in 1 until 15 * 60 * 1000L) {
                 scheduledMessageScheduler.scheduleExactAlarm(
                     scheduledMsgId = scheduledMessage.id,
-                    conversationId = conversationId,
-                    recipientPhone = recipientPhone,
-                    content = content,
                     triggerAtMillis = scheduleAt,
                     repeatType = scheduledMessage.repeatType,
                     repeatUntil = scheduledMessage.repeatUntil ?: -1L
                 )
             }
+            scheduledMessageRepository.insertScheduledMessage(scheduledMessage)
             _messageText.value = ""
             _shortcutSuggestions.value = emptyList()
         }

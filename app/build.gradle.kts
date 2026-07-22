@@ -120,7 +120,6 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 
     // Work Manager for scheduled messages
     implementation("androidx.work:work-runtime-ktx:2.10.0")
@@ -150,9 +149,6 @@ dependencies {
     // Async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
-
-    // Date/Time
-    implementation("joda-time:joda-time:2.12.5")
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.6.0")

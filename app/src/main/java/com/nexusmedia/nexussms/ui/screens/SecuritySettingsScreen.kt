@@ -38,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -220,9 +221,13 @@ fun SecuritySettingsScreen(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(8.dp))
 
-            val retentionPrefs = context.getSharedPreferences("retention_prefs", Context.MODE_PRIVATE)
-            var retentionEnabled by remember { mutableStateOf(retentionPrefs.getBoolean("retention_enabled", false)) }
-            var retentionDays by remember { mutableFloatStateOf(retentionPrefs.getInt("retention_days", 0).toFloat()) }
+            val retentionPrefs = remember { context.getSharedPreferences("retention_prefs", Context.MODE_PRIVATE) }
+            var retentionEnabled by remember { mutableStateOf(false) }
+            var retentionDays by remember { mutableFloatStateOf(0f) }
+            LaunchedEffect(Unit) {
+                retentionEnabled = retentionPrefs.getBoolean("retention_enabled", false)
+                retentionDays = retentionPrefs.getInt("retention_days", 0).toFloat()
+            }
 
             SecuritySection(
                 title = "Data Retention"

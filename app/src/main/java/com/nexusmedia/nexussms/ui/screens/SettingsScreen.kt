@@ -53,6 +53,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +80,10 @@ fun SettingsScreen(
     val signatures by viewModel.signatures.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val context = LocalContext.current
-    val isDefaultSmsApp = remember { checkIsDefaultSmsApp(context) }
+    var isDefaultSmsApp by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        isDefaultSmsApp = checkIsDefaultSmsApp(context)
+    }
     var showDefaultSmsDialog by remember { mutableStateOf(false) }
 
     if (showDefaultSmsDialog) {

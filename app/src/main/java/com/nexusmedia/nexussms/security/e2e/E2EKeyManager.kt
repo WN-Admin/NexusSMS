@@ -28,17 +28,14 @@ data class LocalIdentity(
 @Singleton
 class E2EKeyManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val encryptionManager: EncryptionManager
+    private val encryptionManager: EncryptionManager,
+    private val masterKey: MasterKey
 ) {
     private val gson = Gson()
     private val secureRandom = SecureRandom()
     private val prefs: SharedPreferences by lazy { createEncryptedPrefs() }
 
     private fun createEncryptedPrefs(): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-
         return EncryptedSharedPreferences.create(
             context,
             "e2e_key_prefs",

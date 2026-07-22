@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,10 +82,9 @@ fun BackupScreen(
     var restorePassphrase by remember { mutableStateOf("") }
     var backupPassphrase by remember { mutableStateOf("") }
     var showPassphrase by remember { mutableStateOf(false) }
-    var hasPassphrase by remember {
-        mutableStateOf(
-            try { viewModel.hasBackupPassphrase() } catch (_: Exception) { false }
-        )
+    var hasPassphrase by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        hasPassphrase = try { viewModel.hasBackupPassphrase() } catch (_: Exception) { false }
     }
 
     Scaffold(

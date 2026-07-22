@@ -44,7 +44,8 @@ data class HiddenConversation(
 
 @Singleton
 class VaultManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val masterKey: MasterKey
 ) {
     companion object {
         private const val VAULT_PREFS = "vault_prefs"
@@ -67,10 +68,6 @@ class VaultManager @Inject constructor(
         private const val MAX_FAILED_ATTEMPTS = 5
         private const val LOCKOUT_DURATION_MS = 30_000L // 30 seconds
     }
-
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
 
     private val vaultPrefs = EncryptedSharedPreferences.create(
         context,

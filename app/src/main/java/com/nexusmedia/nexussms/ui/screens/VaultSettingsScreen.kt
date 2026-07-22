@@ -18,9 +18,15 @@ fun VaultSettingsScreen(
     vaultManager: VaultManager,
     onBack: () -> Unit
 ) {
-    val isVaultEnabled = remember { mutableStateOf(vaultManager.isVaultEnabled()) }
-    val hideFromRecents = remember { mutableStateOf(vaultManager.shouldHideFromRecents()) }
-    val autoLockTimeout = remember { mutableStateOf(vaultManager.getAutoLockTimeout()) }
+    val isVaultEnabled = remember { mutableStateOf(false) }
+    val hideFromRecents = remember { mutableStateOf(false) }
+    val autoLockTimeout = remember { mutableStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        isVaultEnabled.value = vaultManager.isVaultEnabled()
+        hideFromRecents.value = vaultManager.shouldHideFromRecents()
+        autoLockTimeout.value = vaultManager.getAutoLockTimeout()
+    }
     var showChangePinDialog by remember { mutableStateOf(false) }
     var showDisableDialog by remember { mutableStateOf(false) }
 

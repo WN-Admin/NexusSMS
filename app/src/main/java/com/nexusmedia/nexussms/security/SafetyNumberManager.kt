@@ -53,7 +53,8 @@ data class KeyFingerprint(
 @Singleton
 class SafetyNumberManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val encryptionManager: EncryptionManager
+    private val encryptionManager: EncryptionManager,
+    private val masterKey: MasterKey
 ) {
     companion object {
         private const val TAG = "SafetyNumberManager"
@@ -63,10 +64,6 @@ class SafetyNumberManager @Inject constructor(
         private const val PREFS_NAME = "safety_number_prefs"
         private const val VERIFIED_KEYS_KEY = "verified_keys"
     }
-
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
 
     private val prefs = EncryptedSharedPreferences.create(
         context,
